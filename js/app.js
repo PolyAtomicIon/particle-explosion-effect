@@ -162,7 +162,7 @@ export default class Sketch {
     });
 
 
-    let count = 80000;
+    let count = 8000;
     let minRadius = 0.02;
     let maxRadius = 0.04;
     let pos = new Float32Array(count * 3);
