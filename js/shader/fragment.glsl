@@ -24,5 +24,5 @@ void main () {
 
 	// gl_FragColor = vec4(finalColor, op * fogDepth*superOpacity);
 	vec4 ttt = texture2D(uTexture, vUv);
-	gl_FragColor = vec4(vec3(0.2314, 0.2078, 0.451), ttt.r);
+	gl_FragColor = vec4(vec3(0.1412, 0.5922, 0.1922), ttt.r);
 }

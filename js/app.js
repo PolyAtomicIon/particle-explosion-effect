@@ -49,7 +49,7 @@ export default class Sketch {
     // var frustumSize = 10;
     // var aspect = window.innerWidth / window.innerHeight;
     // this.camera = new THREE.OrthographicCamera( frustumSize * aspect / - 2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / - 2, -1000, 1000 );
-    this.camera.position.set(0, 2, 2);
+    this.camera.position.set(0, 4, 2);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.time = 0;
 
@@ -162,9 +162,9 @@ export default class Sketch {
     });
 
 
-    let count = 30000;
-    let minRadius = 0.01;
-    let maxRadius = 0.02;
+    let count = 80000;
+    let minRadius = 0.02;
+    let maxRadius = 0.04;
     let pos = new Float32Array(count * 3);
 
     let particlegeo = new THREE.PlaneBufferGeometry(1, 1);
