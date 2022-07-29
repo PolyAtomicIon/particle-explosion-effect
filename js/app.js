@@ -162,9 +162,9 @@ export default class Sketch {
     });
 
 
-    let count = 3000;
+    let count = 30000;
     let minRadius = 0.01;
-    let maxRadius = 0.05;
+    let maxRadius = 0.02;
     let pos = new Float32Array(count * 3);
 
     let particlegeo = new THREE.PlaneBufferGeometry(1, 1);
