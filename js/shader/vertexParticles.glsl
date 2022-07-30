@@ -243,12 +243,12 @@ void main(){
 	vUv=position.xy+vec2(.5);
 	vec3 finalPos=pos+position*.1;
 	
-	float particleSize=cnoise(pos)*.5 + .5;
+	float particleSize=cnoise(pos)*.5 + 1.5;
 	
-	vec3 worldPos=rotation3dY(time*.3*(.01+.002 * particleSize))*pos;
+	vec3 worldPos=rotation3dY(time*.3*(particleSize * 0.02))*pos;
 	
 	vec3 offset0=getOffset(worldPos);
-	vec3 offset=fbm_vec3(worldPos,0.13,0.);
+	vec3 offset=fbm_vec3(worldPos,0.05,0.);
 	
 	worldPos+=offset;
 	worldPos+=offset0;

@@ -23,16 +23,17 @@ export default class Sketch {
     this.scene = new THREE.Scene();
 
     this.container = options.dom;
-    this.width = this.container.offsetWidth;
-    this.height = this.container.offsetHeight;
+		this.width = this.container.offsetWidth || this.container.innerWidth;
+		this.height = this.container.offsetHeight || this.container.innerHeight;
+    console.log(this.height, this.width)
     this.renderer = new THREE.WebGLRenderer({
       transparent: true,
       alpha: true,
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(this.width, this.height);
     // this.renderer.setClearColor(0x000000, 1);
-    this.renderer.physicallyCorrectLights = true;
+    // this.renderer.physicallyCorrectLights = true;
     this.renderer.outputEncoding = THREE.sRGBEncoding;
     this.event = createInputEvents(this.renderer.domElement);
     this.renderer.autoClear = false;
@@ -40,7 +41,7 @@ export default class Sketch {
     this.container.appendChild(this.renderer.domElement);
 
     this.camera = new THREE.PerspectiveCamera(
-      70,
+      75,
       window.innerWidth / window.innerHeight,
       0.001,
       10000
@@ -49,7 +50,9 @@ export default class Sketch {
     // var frustumSize = 10;
     // var aspect = window.innerWidth / window.innerHeight;
     // this.camera = new THREE.OrthographicCamera( frustumSize * aspect / - 2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / - 2, -1000, 1000 );
-    this.camera.position.set(0, 4, 2);
+    this.camera.position.set(0, 6.5, 2);
+    this.camera.aspect = this.width / this.height;
+
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.time = 0;
 
@@ -114,7 +117,6 @@ export default class Sketch {
   }
 
   settings() {
-    let that = this;
     this.settings = {
       progress: 0,
       glow: false,
@@ -122,21 +124,39 @@ export default class Sketch {
       superScale: 1,
     };
     this.gui = new GUI();
-    this.gui.add(this.settings, "progress", 0, 1, 0.01);
-    this.gui.add(this.settings, "fdAlpha", 0, 1, 0.01);
-    this.gui.add(this.settings, "superScale", 0, 3, 0.01);
-    this.gui.add(this.settings, "glow");
+    // this.gui.add(this.settings, "progress", 0, 1, 0.01);
+    // this.gui.add(this.settings, "fdAlpha", 0, 1, 0.01);
+    // this.gui.add(this.settings, "superScale", 0, 3, 0.01);
+    // this.gui.add(this.settings, "glow");
+  }
+
+  fixHeightProblem() {
+    // The trick to viewport units on mobile browsers
+    const vh = window.innerHeight * 0.01;
+    document.documentElement.style.setProperty('--vh', `${vh}px`);
   }
 
   setupResize() {
-    window.addEventListener("resize", this.resize.bind(this));
+    window.addEventListener("resize", this.resize.bind(this), false);
   }
 
   resize() {
-    this.width = this.container.offsetWidth;
-    this.height = this.container.offsetHeight;
+    console.log("hi")
+        
+    this.fixHeightProblem();
+
+    this.width = this.container.offsetWidth || this.container.innerWidth;
+		this.height = this.container.offsetHeight || this.container.innerHeight;
     this.renderer.setSize(this.width, this.height);
+		this.renderer.render(this.scene, this.camera);
     this.camera.aspect = this.width / this.height;
+		this.camera.updateProjectionMatrix();
+
+    for (let i = 0; i < this.materials.length; i++) {
+      this.materials[i].uniforms.u_resolution.value =  {x: this.width, y: this.height};
+    }
+
+		this.renderer.render(this.scene, this.camera);
   }
 
   addObjects() {
@@ -204,14 +224,18 @@ export default class Sketch {
       this.mesh = new THREE.Mesh(geo, material);
       this.scene.add(this.mesh);
 
-      console.log(this.mesh);
+      // console.log(this.mesh);
     }
 
-    createParticleCloud(3000, 0.01, 0.02, 1.6, 1.35);
-    createParticleCloud(4000, 0.02, 0.025, 1.75, 1.35);
-    createParticleCloud(5500, 0.025, 0.03, 1.85, 1.35);
-    createParticleCloud(2000, 0.025, 0.03, 2.0, 1.35);
-    createParticleCloud(1000, 0.025, 0.03, 2.15, 1.35);
+    let startDuration = 1.6;
+    let durationGap = 0.1;
+    let speed = 1.4;
+
+    createParticleCloud(1500, 0.01, 0.02, startDuration, speed);
+    createParticleCloud(2000, 0.02, 0.025, startDuration + durationGap * 1, speed);
+    createParticleCloud(850, 0.025, 0.03, startDuration + durationGap * 2, speed);
+    createParticleCloud(650, 0.025, 0.03, startDuration + durationGap * 3, speed);
+    createParticleCloud(700, 0.025, 0.03, startDuration + durationGap * 4, speed);
 
   }
 
@@ -258,6 +282,8 @@ export default class Sketch {
   }
 }
 
-new Sketch({
+const sketch = new Sketch({
   dom: document.getElementById("container"),
 });
+
+sketch.fixHeightProblem();
