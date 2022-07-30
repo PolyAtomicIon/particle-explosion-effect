@@ -1,15 +1,15 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 // import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { EXRLoader } from "three/examples/jsm/loaders/EXRLoader.js";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+// import { EXRLoader } from "three/examples/jsm/loaders/EXRLoader.js";
+// import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 
 import fragment from "./shader/fragment.glsl";
 import vertex from "./shader/vertexParticles.glsl";
 import GUI from "lil-gui";
 import gsap from "gsap";
-import scene from "../scene.json";
-import colorTiles from "../color-tiles.png";
+// import scene from "../scene.json";
+// import colorTiles from "../color-tiles.png";
 import particleTexture from "../particle-texture.png";
 const random = require("canvas-sketch-util/random");
 const createInputEvents = require("simple-input-events");
@@ -41,7 +41,7 @@ export default class Sketch {
     this.container.appendChild(this.renderer.domElement);
 
     this.camera = new THREE.PerspectiveCamera(
-      75,
+      85,
       window.innerWidth / window.innerHeight,
       0.001,
       10000
@@ -50,7 +50,7 @@ export default class Sketch {
     // var frustumSize = 10;
     // var aspect = window.innerWidth / window.innerHeight;
     // this.camera = new THREE.OrthographicCamera( frustumSize * aspect / - 2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / - 2, -1000, 1000 );
-    this.camera.position.set(0, 6.5, 2);
+    this.camera.position.set(0, 8.5, 2);
     this.camera.aspect = this.width / this.height;
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -227,15 +227,19 @@ export default class Sketch {
       // console.log(this.mesh);
     }
 
-    let startDuration = 1.6;
-    let durationGap = 0.1;
-    let speed = 1.4;
+    let startDuration = 1.4;
+    let durationGap = 0.02;
+    let speed = 1.5;
 
-    createParticleCloud(1500, 0.01, 0.02, startDuration, speed);
-    createParticleCloud(2000, 0.02, 0.025, startDuration + durationGap * 1, speed);
-    createParticleCloud(850, 0.025, 0.03, startDuration + durationGap * 2, speed);
-    createParticleCloud(650, 0.025, 0.03, startDuration + durationGap * 3, speed);
-    createParticleCloud(700, 0.025, 0.03, startDuration + durationGap * 4, speed);
+    const count = 1000;
+    const minRadius = 0.025;
+    const maxRadius = 1.0;
+
+    createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 0, speed);
+    createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 1, speed);
+    createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 2, speed);
+    createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 3, speed);
+    createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 4, speed);
 
   }
 
