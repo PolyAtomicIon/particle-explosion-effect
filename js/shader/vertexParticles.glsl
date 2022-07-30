@@ -2,6 +2,10 @@ precision highp float;
 
 uniform float time;
 uniform bool boomAnimation;
+uniform float animationTime;
+uniform float boomAnimationSpeed;
+// uniform float animationTime=1.8;
+// uniform float boomAnimationSpeed=1.3;
 varying vec3 vPosition;
 varying vec2 vUv;
 attribute vec3 pos;
@@ -11,7 +15,6 @@ const vec3 color2=vec3(.39,.52,.97);
 const vec3 color3=vec3(.51,.17,.75);
 const float E=2.7182818284590452;
 const float PI=3.14159265359;
-const float animationTime=1.8;
 
 //
 // GLSL textureless classic 3D noise "cnoise",
@@ -211,7 +214,7 @@ mat3 rotation3dY(float angle){
 	float s=sin(angle);
 	float c=cos(angle);
 	
-	float scaler=.2+pow(E*E*1.,min(time,animationTime)*1.3);
+	float scaler=.2+pow(E*E*1.,min(time,animationTime)*boomAnimationSpeed);
 	
 	return mat3(
 		c*scaler,0.,-s*scaler,
@@ -229,7 +232,7 @@ vec3 fbm_vec3(vec3 p,float frequency,float offset){
 }
 
 vec3 getOffset(vec3 p){
-	vec3 tempPos=rotation3dY(min(time,animationTime)*1.9 + length(pos.xz))*p;
+	vec3 tempPos=rotation3dY(min(time,animationTime)*.9 + length(pos.xz))*p;
 	
 	vec3 offset=fbm_vec3(tempPos,.1,0.);
 	return offset;
@@ -240,12 +243,12 @@ void main(){
 	vUv=position.xy+vec2(.5);
 	vec3 finalPos=pos+position*.1;
 	
-	float particleSize=cnoise(pos*.5)*.25;
+	float particleSize=cnoise(pos)*.5 + .5;
 	
-	vec3 worldPos=rotation3dY(time*.3*(.01+.25*particleSize))*pos;
+	vec3 worldPos=rotation3dY(time*.3*(.01+.002 * particleSize))*pos;
 	
 	vec3 offset0=getOffset(worldPos);
-	vec3 offset=fbm_vec3(worldPos,0.25,0.);
+	vec3 offset=fbm_vec3(worldPos,0.13,0.);
 	
 	worldPos+=offset;
 	worldPos+=offset0;

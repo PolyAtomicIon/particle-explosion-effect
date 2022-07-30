@@ -141,56 +141,77 @@ export default class Sketch {
 
   addObjects() {
 
-    this.material = new THREE.ShaderMaterial({
-      extensions: {
-        derivatives: "#extension GL_OES_standard_derivatives : enable",
-      },
-      side: THREE.DoubleSide,
-      uniforms: {
-        uTexture: {value: new THREE.TextureLoader().load(particleTexture)}, 
-        time: { value: 0 },
-        boomAnimation: { value: this.isBoomAnimationActive },
-        resolution: { value: new THREE.Vector4() },
-      },
-      // wireframe: true,
-      transparent: true,
-      vertexShader: vertex,
-      fragmentShader: fragment,
-      blending: THREE.AdditiveBlending,
-      // depthWrite: false,
-      depthTest: false,
-    });
+    this.uniforms = {
+      uTexture: { value: new THREE.TextureLoader().load(particleTexture) },
+      time: { value: 0 },
+      boomAnimation: { value: this.isBoomAnimationActive },
+      resolution: { value: new THREE.Vector4() },
+    };
 
+    this.materials = [];
 
-    let count = 8000;
-    let minRadius = 0.02;
-    let maxRadius = 0.04;
-    let pos = new Float32Array(count * 3);
+    let createParticleCloud = (
+      count,
+      minRadius,
+      maxRadius,
+      animationTime,
+      boomAnimationSpeed
+    ) => {
 
-    let particlegeo = new THREE.PlaneBufferGeometry(1, 1);
-    let geo = new THREE.InstancedBufferGeometry();
-    geo.instanceCount = count;
-    geo.setAttribute("position", particlegeo.getAttribute('position'));
-    geo.index = particlegeo.index;
+      let material = new THREE.ShaderMaterial({
+        extensions: {
+          derivatives: "#extension GL_OES_standard_derivatives : enable",
+        },
+        side: THREE.DoubleSide,
+        uniforms: {
+          ...this.uniforms,
+          u_resolution: {value: {x: this.width, y: this.height}},
+          animationTime: { value: animationTime },
+          boomAnimationSpeed: { value: boomAnimationSpeed },
+        },
+        // wireframe: true,
+        transparent: true,
+        vertexShader: vertex,
+        fragmentShader: fragment,
+        blending: THREE.AdditiveBlending,
+        // depthWrite: false,
+        depthTest: false,
+      });
 
-    for (let i = 0; i < count; i++) {
-      let theta = Math.random() * 2 * Math.PI;
-      let r = lerp(minRadius, maxRadius, Math.random());
-      let x = r * Math.sin(theta);
-      let y = (Math.random() - 0.5) * 0.05;
-      let z = r * Math.cos(theta);
+      this.materials.push(material);
 
-      pos.set([
-        x, y, z
-      ], i * 3);
+      let pos = new Float32Array(count * 3);
+      let particlegeo = new THREE.PlaneBufferGeometry(1, 1);
+      let geo = new THREE.InstancedBufferGeometry();
+      geo.instanceCount = count;
+      geo.setAttribute("position", particlegeo.getAttribute('position'));
+      geo.index = particlegeo.index;
+
+      for (let i = 0; i < count; i++) {
+        let theta = Math.random() * 2 * Math.PI;
+        let r = lerp(minRadius, maxRadius, Math.random());
+        let x = r * Math.sin(theta);
+        let y = (Math.random() - 0.5) * 0.05;
+        let z = r * Math.cos(theta);
+
+        pos.set([
+          x, y, z
+        ], i * 3);
+      }
+
+      geo.setAttribute("pos", new THREE.InstancedBufferAttribute(pos, 3, false));
+      geo.setAttribute("uv", new THREE.BufferAttribute(pos, 2));
+      this.mesh = new THREE.Mesh(geo, material);
+      this.scene.add(this.mesh);
+
+      console.log(this.mesh);
     }
 
-    geo.setAttribute("pos", new THREE.InstancedBufferAttribute(pos, 3, false));
-    geo.setAttribute("uv", new THREE.BufferAttribute(pos, 2));
-    this.mesh = new THREE.Mesh(geo, this.material);
-    this.scene.add(this.mesh);
-
-    console.log(this.mesh);
+    createParticleCloud(3000, 0.01, 0.02, 1.6, 1.35);
+    createParticleCloud(4000, 0.02, 0.025, 1.75, 1.35);
+    createParticleCloud(5500, 0.025, 0.03, 1.85, 1.35);
+    createParticleCloud(2000, 0.025, 0.03, 2.0, 1.35);
+    createParticleCloud(1000, 0.025, 0.03, 2.15, 1.35);
 
   }
 
@@ -225,8 +246,10 @@ export default class Sketch {
     // this.time = this.time%1;
     // this.material.uniforms.fade.value = this.settings.progress;
     // this.material.uniforms.glow.value = this.settings.glow
-    this.material.uniforms.time.value = this.time;
-    this.material.uniforms.boomAnimation.value = this.isBoomAnimationActive;
+    for (let i = 0; i < this.materials.length; i++) {
+      this.materials[i].uniforms.time.value = this.time;
+    }
+    // this.material.uniforms.boomAnimation.value = this.isBoomAnimationActive;
     // this.material.uniforms.fdAlpha.value = this.settings.fdAlpha;
     // this.material.uniforms.superOpacity.value = 1;
     requestAnimationFrame(this.render.bind(this));

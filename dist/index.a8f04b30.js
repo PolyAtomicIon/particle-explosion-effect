@@ -636,59 +636,80 @@ class Sketch {
         this.camera.aspect = this.width / this.height;
     }
     addObjects() {
-        this.material = new _three.ShaderMaterial({
-            extensions: {
-                derivatives: "#extension GL_OES_standard_derivatives : enable"
+        this.uniforms = {
+            uTexture: {
+                value: new _three.TextureLoader().load(_particleTexturePngDefault.default)
             },
-            side: _three.DoubleSide,
-            uniforms: {
-                uTexture: {
-                    value: new _three.TextureLoader().load(_particleTexturePngDefault.default)
-                },
-                time: {
-                    value: 0
-                },
-                boomAnimation: {
-                    value: this.isBoomAnimationActive
-                },
-                resolution: {
-                    value: new _three.Vector4()
-                }
+            time: {
+                value: 0
             },
-            // wireframe: true,
-            transparent: true,
-            vertexShader: _vertexParticlesGlslDefault.default,
-            fragmentShader: _fragmentGlslDefault.default,
-            blending: _three.AdditiveBlending,
-            // depthWrite: false,
-            depthTest: false
-        });
-        let count = 8000;
-        let minRadius = 0.02;
-        let maxRadius = 0.04;
-        let pos = new Float32Array(count * 3);
-        let particlegeo = new _three.PlaneBufferGeometry(1, 1);
-        let geo = new _three.InstancedBufferGeometry();
-        geo.instanceCount = count;
-        geo.setAttribute("position", particlegeo.getAttribute('position'));
-        geo.index = particlegeo.index;
-        for(let i = 0; i < count; i++){
-            let theta = Math.random() * 2 * Math.PI;
-            let r = lerp(minRadius, maxRadius, Math.random());
-            let x = r * Math.sin(theta);
-            let y = (Math.random() - 0.5) * 0.05;
-            let z = r * Math.cos(theta);
-            pos.set([
-                x,
-                y,
-                z
-            ], i * 3);
-        }
-        geo.setAttribute("pos", new _three.InstancedBufferAttribute(pos, 3, false));
-        geo.setAttribute("uv", new _three.BufferAttribute(pos, 2));
-        this.mesh = new _three.Mesh(geo, this.material);
-        this.scene.add(this.mesh);
-        console.log(this.mesh);
+            boomAnimation: {
+                value: this.isBoomAnimationActive
+            },
+            resolution: {
+                value: new _three.Vector4()
+            }
+        };
+        this.materials = [];
+        let createParticleCloud = (count, minRadius, maxRadius, animationTime, boomAnimationSpeed)=>{
+            let material = new _three.ShaderMaterial({
+                extensions: {
+                    derivatives: "#extension GL_OES_standard_derivatives : enable"
+                },
+                side: _three.DoubleSide,
+                uniforms: {
+                    ...this.uniforms,
+                    u_resolution: {
+                        value: {
+                            x: this.width,
+                            y: this.height
+                        }
+                    },
+                    animationTime: {
+                        value: animationTime
+                    },
+                    boomAnimationSpeed: {
+                        value: boomAnimationSpeed
+                    }
+                },
+                // wireframe: true,
+                transparent: true,
+                vertexShader: _vertexParticlesGlslDefault.default,
+                fragmentShader: _fragmentGlslDefault.default,
+                blending: _three.AdditiveBlending,
+                // depthWrite: false,
+                depthTest: false
+            });
+            this.materials.push(material);
+            let pos = new Float32Array(count * 3);
+            let particlegeo = new _three.PlaneBufferGeometry(1, 1);
+            let geo = new _three.InstancedBufferGeometry();
+            geo.instanceCount = count;
+            geo.setAttribute("position", particlegeo.getAttribute('position'));
+            geo.index = particlegeo.index;
+            for(let i = 0; i < count; i++){
+                let theta = Math.random() * 2 * Math.PI;
+                let r = lerp(minRadius, maxRadius, Math.random());
+                let x = r * Math.sin(theta);
+                let y = (Math.random() - 0.5) * 0.05;
+                let z = r * Math.cos(theta);
+                pos.set([
+                    x,
+                    y,
+                    z
+                ], i * 3);
+            }
+            geo.setAttribute("pos", new _three.InstancedBufferAttribute(pos, 3, false));
+            geo.setAttribute("uv", new _three.BufferAttribute(pos, 2));
+            this.mesh = new _three.Mesh(geo, material);
+            this.scene.add(this.mesh);
+            console.log(this.mesh);
+        };
+        createParticleCloud(3000, 0.01, 0.02, 1.6, 1.35);
+        createParticleCloud(4000, 0.02, 0.025, 1.75, 1.35);
+        createParticleCloud(5500, 0.025, 0.03, 1.85, 1.35);
+        createParticleCloud(2000, 0.025, 0.03, 2, 1.35);
+        createParticleCloud(1000, 0.025, 0.03, 2.15, 1.35);
     }
     stop() {
         this.isPlaying = false;
@@ -716,8 +737,8 @@ class Sketch {
         // this.time = this.time%1;
         // this.material.uniforms.fade.value = this.settings.progress;
         // this.material.uniforms.glow.value = this.settings.glow
-        this.material.uniforms.time.value = this.time;
-        this.material.uniforms.boomAnimation.value = this.isBoomAnimationActive;
+        for(let i = 0; i < this.materials.length; i++)this.materials[i].uniforms.time.value = this.time;
+        // this.material.uniforms.boomAnimation.value = this.isBoomAnimationActive;
         // this.material.uniforms.fdAlpha.value = this.settings.fdAlpha;
         // this.material.uniforms.superOpacity.value = 1;
         requestAnimationFrame(this.render.bind(this));
@@ -37633,7 +37654,7 @@ function unzipSync(data) {
 }
 
 },{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"501kY":[function(require,module,exports) {
-module.exports = "precision highp float;\n#define GLSLIFY 1\nvarying vec2 vUv;\nuniform sampler2D uTexture;\n\nvoid main () {\n\t// if(globalAlpha < .001 || opacity < .001 || vScale < .001 || fogDepth < .001) discard;\n\t// vec2 st = vec2(-1.0) + 2.0 * gl_PointCoord.xy;\n\t// float d = 1.0 - distance(st, vec2(0.));\n\n\t// // d = mix(d, smoothstep(0., .25, d), depth);\n\t// if(!glow) d = smoothstep(0., .25, d);\n\t// else d = mix(d, smoothstep(0., .25, d), depth);\n\t// float depthOpacity = mix(.25, 1.0, depth);\n\t\n\t// if(d < .001) discard;\n\n\t// float op = d * opacity * globalAlpha * depthOpacity;\n\t// // op = mix(op, smoothstep(.0, .4, op), fdAlpha);\n\n\t// vec3 finalColor = mix(vColor, mix(vColor, vec3(1.), .35), vRing);\n\t// finalColor = mix(finalColor, vec3(0.), 1.0-fogDepth);\n\n\t// finalColor = mix(finalColor, applyLevels(finalColor), vLevels);\n\n\t// gl_FragColor = vec4(finalColor, op * fogDepth*superOpacity);\n\tvec4 ttt = texture2D(uTexture, vUv);\n\tgl_FragColor = vec4(vec3(0.1412, 0.5922, 0.1922), ttt.r);\n}";
+module.exports = "precision highp float;\n#define GLSLIFY 1\nvarying vec2 vUv;\nuniform sampler2D uTexture;\nuniform vec2 u_resolution;\n\nvoid main(){\n\t// if(globalAlpha < .001 || opacity < .001 || vScale < .001 || fogDepth < .001) discard;\n\t// vec2 st = vec2(-1.0) + 2.0 * gl_PointCoord.xy;\n\t// float d = 1.0 - distance(st, vec2(0.));\n\t\n\t// // d = mix(d, smoothstep(0., .25, d), depth);\n\t// if(!glow) d = smoothstep(0., .25, d);\n\t// else d = mix(d, smoothstep(0., .25, d), depth);\n\t// float depthOpacity = mix(.25, 1.0, depth);\n\t\n\t// if(d < .001) discard;\n\t\n\t// float op = d * opacity * globalAlpha * depthOpacity;\n\t// // op = mix(op, smoothstep(.0, .4, op), fdAlpha);\n\t\n\t// vec3 finalColor = mix(vColor, mix(vColor, vec3(1.), .35), vRing);\n\t// finalColor = mix(finalColor, vec3(0.), 1.0-fogDepth);\n\t\n\t// finalColor = mix(finalColor, applyLevels(finalColor), vLevels);\n\t\n\t// gl_FragColor = vec4(finalColor, op * fogDepth*superOpacity);\n\t\n\t// vec2 st=gl_FragCoord.xy/u_resolution.xy;\n\t\n\t// vec3 color1=vec3(0.7647, 0.4941, 0.0588);\n\t// vec3 color2=vec3(0.0, 0.6157, 0.1843);\n\t\n\t// float mixValue=distance(st,vec2(0,1));\n\t\n\t// vec3 color=mix(color1,color2,mixValue);\n\t// vec4 ttt=texture2D(uTexture,vUv);\n\t\n\t// gl_FragColor=vec4(color,ttt.r);\n\n\tvec2 pos_ndc = 2.0 * gl_FragCoord.xy / u_resolution.xy - 1.0;\n    float dist = length(pos_ndc);\n\n    vec4 white = vec4(0.0902, 0.7725, 0.4667, 1.0);\n    vec4 red = vec4(0.1137, 0.4118, 0.1647, 1.0);\n    vec4 blue = vec4(1.0, 0.9686, 0.0, 1.0);\n    vec4 green = vec4(0.0, 1.0, 0.0, 1.0);\n    float step1 = 0.0;\n    float step2 = 0.33;\n    float step3 = 0.78;\n    float step4 = 1.0;\n\n    vec4 color = mix(white, red, smoothstep(step1, step2, dist));\n    color = mix(color, blue, smoothstep(step2, step3, dist));\n    color = mix(color, green, smoothstep(step3, step4, dist));\n\n\tvec4 ttt=texture2D(uTexture,vUv);\n\tgl_FragColor=vec4(vec3(color),ttt.r);\n    // gl_FragColor = color;\n}";
 
 },{}],"fkEfG":[function(require,module,exports) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
@@ -44634,7 +44655,7 @@ function eventTargetAgnosticAddListener(emitter, name, listener, flags) {
 }
 
 },{}],"3ctUY":[function(require,module,exports) {
-module.exports = "precision highp float;\n#define GLSLIFY 1\n\nuniform float time;\nuniform bool boomAnimation;\nvarying vec3 vPosition;\nvarying vec2 vUv;\nattribute vec3 pos;\n\nconst vec3 color1=vec3(0.,.14,.64);\nconst vec3 color2=vec3(.39,.52,.97);\nconst vec3 color3=vec3(.51,.17,.75);\nconst float E=2.7182818284590452;\nconst float PI=3.14159265359;\nconst float animationTime=1.8;\n\n//\n// GLSL textureless classic 3D noise \"cnoise\",\n// with an RSL-style periodic variant \"pnoise\".\n// Author:  Stefan Gustavson (stefan.gustavson@liu.se)\n// Version: 2011-10-11\n//\n// Many thanks to Ian McEwan of Ashima Arts for the\n// ideas for permutation and gradient selection.\n//\n// Copyright (c) 2011 Stefan Gustavson. All rights reserved.\n// Distributed under the MIT license. See LICENSE file.\n// https://github.com/stegu/webgl-noise\n//\n\nvec3 mod289(vec3 x)\n{\n\treturn x-floor(x*(1./289.))*289.;\n}\n\nvec4 mod289(vec4 x)\n{\n\treturn x-floor(x*(1./289.))*289.;\n}\n\nvec4 permute(vec4 x)\n{\n\treturn mod289(((x*34.)+10.)*x);\n}\n\nvec4 taylorInvSqrt(vec4 r)\n{\n\treturn 1.79284291400159-.85373472095314*r;\n}\n\nvec3 fade(vec3 t){\n\treturn t*t*t*(t*(t*6.-15.)+10.);\n}\n\n// Classic Perlin noise\nfloat cnoise(vec3 P)\n{\n\tvec3 Pi0=floor(P);// Integer part for indexing\n\tvec3 Pi1=Pi0+vec3(1.);// Integer part + 1\n\tPi0=mod289(Pi0);\n\tPi1=mod289(Pi1);\n\tvec3 Pf0=fract(P);// Fractional part for interpolation\n\tvec3 Pf1=Pf0-vec3(1.);// Fractional part - 1.0\n\tvec4 ix=vec4(Pi0.x,Pi1.x,Pi0.x,Pi1.x);\n\tvec4 iy=vec4(Pi0.yy,Pi1.yy);\n\tvec4 iz0=Pi0.zzzz;\n\tvec4 iz1=Pi1.zzzz;\n\t\n\tvec4 ixy=permute(permute(ix)+iy);\n\tvec4 ixy0=permute(ixy+iz0);\n\tvec4 ixy1=permute(ixy+iz1);\n\t\n\tvec4 gx0=ixy0*(1./7.);\n\tvec4 gy0=fract(floor(gx0)*(1./7.))-.5;\n\tgx0=fract(gx0);\n\tvec4 gz0=vec4(.5)-abs(gx0)-abs(gy0);\n\tvec4 sz0=step(gz0,vec4(0.));\n\tgx0-=sz0*(step(0.,gx0)-.5);\n\tgy0-=sz0*(step(0.,gy0)-.5);\n\t\n\tvec4 gx1=ixy1*(1./7.);\n\tvec4 gy1=fract(floor(gx1)*(1./7.))-.5;\n\tgx1=fract(gx1);\n\tvec4 gz1=vec4(.5)-abs(gx1)-abs(gy1);\n\tvec4 sz1=step(gz1,vec4(0.));\n\tgx1-=sz1*(step(0.,gx1)-.5);\n\tgy1-=sz1*(step(0.,gy1)-.5);\n\t\n\tvec3 g000=vec3(gx0.x,gy0.x,gz0.x);\n\tvec3 g100=vec3(gx0.y,gy0.y,gz0.y);\n\tvec3 g010=vec3(gx0.z,gy0.z,gz0.z);\n\tvec3 g110=vec3(gx0.w,gy0.w,gz0.w);\n\tvec3 g001=vec3(gx1.x,gy1.x,gz1.x);\n\tvec3 g101=vec3(gx1.y,gy1.y,gz1.y);\n\tvec3 g011=vec3(gx1.z,gy1.z,gz1.z);\n\tvec3 g111=vec3(gx1.w,gy1.w,gz1.w);\n\t\n\tvec4 norm0=taylorInvSqrt(vec4(dot(g000,g000),dot(g010,g010),dot(g100,g100),dot(g110,g110)));\n\tg000*=norm0.x;\n\tg010*=norm0.y;\n\tg100*=norm0.z;\n\tg110*=norm0.w;\n\tvec4 norm1=taylorInvSqrt(vec4(dot(g001,g001),dot(g011,g011),dot(g101,g101),dot(g111,g111)));\n\tg001*=norm1.x;\n\tg011*=norm1.y;\n\tg101*=norm1.z;\n\tg111*=norm1.w;\n\t\n\tfloat n000=dot(g000,Pf0);\n\tfloat n100=dot(g100,vec3(Pf1.x,Pf0.yz));\n\tfloat n010=dot(g010,vec3(Pf0.x,Pf1.y,Pf0.z));\n\tfloat n110=dot(g110,vec3(Pf1.xy,Pf0.z));\n\tfloat n001=dot(g001,vec3(Pf0.xy,Pf1.z));\n\tfloat n101=dot(g101,vec3(Pf1.x,Pf0.y,Pf1.z));\n\tfloat n011=dot(g011,vec3(Pf0.x,Pf1.yz));\n\tfloat n111=dot(g111,Pf1);\n\t\n\tvec3 fade_xyz=fade(Pf0);\n\tvec4 n_z=mix(vec4(n000,n100,n010,n110),vec4(n001,n101,n011,n111),fade_xyz.z);\n\tvec2 n_yz=mix(n_z.xy,n_z.zw,fade_xyz.y);\n\tfloat n_xyz=mix(n_yz.x,n_yz.y,fade_xyz.x);\n\treturn 2.2*n_xyz;\n}\n\n// Classic Perlin noise, periodic variant\nfloat pnoise(vec3 P,vec3 rep)\n{\n\tvec3 Pi0=mod(floor(P),rep);// Integer part, modulo period\n\tvec3 Pi1=mod(Pi0+vec3(1.),rep);// Integer part + 1, mod period\n\tPi0=mod289(Pi0);\n\tPi1=mod289(Pi1);\n\tvec3 Pf0=fract(P);// Fractional part for interpolation\n\tvec3 Pf1=Pf0-vec3(1.);// Fractional part - 1.0\n\tvec4 ix=vec4(Pi0.x,Pi1.x,Pi0.x,Pi1.x);\n\tvec4 iy=vec4(Pi0.yy,Pi1.yy);\n\tvec4 iz0=Pi0.zzzz;\n\tvec4 iz1=Pi1.zzzz;\n\t\n\tvec4 ixy=permute(permute(ix)+iy);\n\tvec4 ixy0=permute(ixy+iz0);\n\tvec4 ixy1=permute(ixy+iz1);\n\t\n\tvec4 gx0=ixy0*(1./7.);\n\tvec4 gy0=fract(floor(gx0)*(1./7.))-.5;\n\tgx0=fract(gx0);\n\tvec4 gz0=vec4(.5)-abs(gx0)-abs(gy0);\n\tvec4 sz0=step(gz0,vec4(0.));\n\tgx0-=sz0*(step(0.,gx0)-.5);\n\tgy0-=sz0*(step(0.,gy0)-.5);\n\t\n\tvec4 gx1=ixy1*(1./7.);\n\tvec4 gy1=fract(floor(gx1)*(1./7.))-.5;\n\tgx1=fract(gx1);\n\tvec4 gz1=vec4(.5)-abs(gx1)-abs(gy1);\n\tvec4 sz1=step(gz1,vec4(0.));\n\tgx1-=sz1*(step(0.,gx1)-.5);\n\tgy1-=sz1*(step(0.,gy1)-.5);\n\t\n\tvec3 g000=vec3(gx0.x,gy0.x,gz0.x);\n\tvec3 g100=vec3(gx0.y,gy0.y,gz0.y);\n\tvec3 g010=vec3(gx0.z,gy0.z,gz0.z);\n\tvec3 g110=vec3(gx0.w,gy0.w,gz0.w);\n\tvec3 g001=vec3(gx1.x,gy1.x,gz1.x);\n\tvec3 g101=vec3(gx1.y,gy1.y,gz1.y);\n\tvec3 g011=vec3(gx1.z,gy1.z,gz1.z);\n\tvec3 g111=vec3(gx1.w,gy1.w,gz1.w);\n\t\n\tvec4 norm0=taylorInvSqrt(vec4(dot(g000,g000),dot(g010,g010),dot(g100,g100),dot(g110,g110)));\n\tg000*=norm0.x;\n\tg010*=norm0.y;\n\tg100*=norm0.z;\n\tg110*=norm0.w;\n\tvec4 norm1=taylorInvSqrt(vec4(dot(g001,g001),dot(g011,g011),dot(g101,g101),dot(g111,g111)));\n\tg001*=norm1.x;\n\tg011*=norm1.y;\n\tg101*=norm1.z;\n\tg111*=norm1.w;\n\t\n\tfloat n000=dot(g000,Pf0);\n\tfloat n100=dot(g100,vec3(Pf1.x,Pf0.yz));\n\tfloat n010=dot(g010,vec3(Pf0.x,Pf1.y,Pf0.z));\n\tfloat n110=dot(g110,vec3(Pf1.xy,Pf0.z));\n\tfloat n001=dot(g001,vec3(Pf0.xy,Pf1.z));\n\tfloat n101=dot(g101,vec3(Pf1.x,Pf0.y,Pf1.z));\n\tfloat n011=dot(g011,vec3(Pf0.x,Pf1.yz));\n\tfloat n111=dot(g111,Pf1);\n\t\n\tvec3 fade_xyz=fade(Pf0);\n\tvec4 n_z=mix(vec4(n000,n100,n010,n110),vec4(n001,n101,n011,n111),fade_xyz.z);\n\tvec2 n_yz=mix(n_z.xy,n_z.zw,fade_xyz.y);\n\tfloat n_xyz=mix(n_yz.x,n_yz.y,fade_xyz.x);\n\treturn 2.2*n_xyz;\n}\n\nfloat range(float x,float limit){\n\tif(x>0.){\n\t\treturn limit;\n\t}\n\telse{\n\t\treturn-limit;\n\t}\n}\n\nfloat normalDistribution(float x){\n\tconst float u=.34;\n\tconst float sigma=.1;\n\t\n\treturn(1./(sigma*pow(2.*PI,.5)))*pow(E,-pow((x-u),2.)/(2.*pow(sigma,2.)));\n}\n\nmat3 rotation3dY(float angle){\n\tfloat s=sin(angle);\n\tfloat c=cos(angle);\n\t\n\tfloat scaler=.2+pow(E*E*1.,min(time,animationTime)*1.3);\n\t\n\treturn mat3(\n\t\tc*scaler,0.,-s*scaler,\n\t\t0.,1.,0.,\n\t\ts*scaler,0.,c*scaler\n\t);\n}\n\nvec3 fbm_vec3(vec3 p,float frequency,float offset){\n\treturn vec3(\n\t\tcnoise((p+vec3(offset))*frequency),\n\t\tcnoise((p+vec3(offset+20.))*frequency),\n\t\tcnoise((p+vec3(offset-30.))*frequency)\n\t);\n}\n\nvec3 getOffset(vec3 p){\n\tvec3 tempPos=rotation3dY(min(time,animationTime)*1.9 + length(pos.xz))*p;\n\t\n\tvec3 offset=fbm_vec3(tempPos,.1,0.);\n\treturn offset;\n}\n\nvoid main(){\n\t\n\tvUv=position.xy+vec2(.5);\n\tvec3 finalPos=pos+position*.1;\n\t\n\tfloat particleSize=cnoise(pos*.5)*.25;\n\t\n\tvec3 worldPos=rotation3dY(time*.3*(.01+.25*particleSize))*pos;\n\t\n\tvec3 offset0=getOffset(worldPos);\n\tvec3 offset=fbm_vec3(worldPos,0.25,0.);\n\t\n\tworldPos+=offset;\n\tworldPos+=offset0;\n\t\n\tvec3 particlePosition=(modelMatrix*vec4(worldPos,1.)).xyz;\n\t\n\tvec4 viewPos=viewMatrix*vec4(particlePosition,1.);\n\t\n\tviewPos.xyz+=position*(.02+.05*particleSize);\n\t\n\tgl_Position=projectionMatrix*viewPos;\n\t\n}";
+module.exports = "precision highp float;\n#define GLSLIFY 1\n\nuniform float time;\nuniform bool boomAnimation;\nuniform float animationTime;\nuniform float boomAnimationSpeed;\n// uniform float animationTime=1.8;\n// uniform float boomAnimationSpeed=1.3;\nvarying vec3 vPosition;\nvarying vec2 vUv;\nattribute vec3 pos;\n\nconst vec3 color1=vec3(0.,.14,.64);\nconst vec3 color2=vec3(.39,.52,.97);\nconst vec3 color3=vec3(.51,.17,.75);\nconst float E=2.7182818284590452;\nconst float PI=3.14159265359;\n\n//\n// GLSL textureless classic 3D noise \"cnoise\",\n// with an RSL-style periodic variant \"pnoise\".\n// Author:  Stefan Gustavson (stefan.gustavson@liu.se)\n// Version: 2011-10-11\n//\n// Many thanks to Ian McEwan of Ashima Arts for the\n// ideas for permutation and gradient selection.\n//\n// Copyright (c) 2011 Stefan Gustavson. All rights reserved.\n// Distributed under the MIT license. See LICENSE file.\n// https://github.com/stegu/webgl-noise\n//\n\nvec3 mod289(vec3 x)\n{\n\treturn x-floor(x*(1./289.))*289.;\n}\n\nvec4 mod289(vec4 x)\n{\n\treturn x-floor(x*(1./289.))*289.;\n}\n\nvec4 permute(vec4 x)\n{\n\treturn mod289(((x*34.)+10.)*x);\n}\n\nvec4 taylorInvSqrt(vec4 r)\n{\n\treturn 1.79284291400159-.85373472095314*r;\n}\n\nvec3 fade(vec3 t){\n\treturn t*t*t*(t*(t*6.-15.)+10.);\n}\n\n// Classic Perlin noise\nfloat cnoise(vec3 P)\n{\n\tvec3 Pi0=floor(P);// Integer part for indexing\n\tvec3 Pi1=Pi0+vec3(1.);// Integer part + 1\n\tPi0=mod289(Pi0);\n\tPi1=mod289(Pi1);\n\tvec3 Pf0=fract(P);// Fractional part for interpolation\n\tvec3 Pf1=Pf0-vec3(1.);// Fractional part - 1.0\n\tvec4 ix=vec4(Pi0.x,Pi1.x,Pi0.x,Pi1.x);\n\tvec4 iy=vec4(Pi0.yy,Pi1.yy);\n\tvec4 iz0=Pi0.zzzz;\n\tvec4 iz1=Pi1.zzzz;\n\t\n\tvec4 ixy=permute(permute(ix)+iy);\n\tvec4 ixy0=permute(ixy+iz0);\n\tvec4 ixy1=permute(ixy+iz1);\n\t\n\tvec4 gx0=ixy0*(1./7.);\n\tvec4 gy0=fract(floor(gx0)*(1./7.))-.5;\n\tgx0=fract(gx0);\n\tvec4 gz0=vec4(.5)-abs(gx0)-abs(gy0);\n\tvec4 sz0=step(gz0,vec4(0.));\n\tgx0-=sz0*(step(0.,gx0)-.5);\n\tgy0-=sz0*(step(0.,gy0)-.5);\n\t\n\tvec4 gx1=ixy1*(1./7.);\n\tvec4 gy1=fract(floor(gx1)*(1./7.))-.5;\n\tgx1=fract(gx1);\n\tvec4 gz1=vec4(.5)-abs(gx1)-abs(gy1);\n\tvec4 sz1=step(gz1,vec4(0.));\n\tgx1-=sz1*(step(0.,gx1)-.5);\n\tgy1-=sz1*(step(0.,gy1)-.5);\n\t\n\tvec3 g000=vec3(gx0.x,gy0.x,gz0.x);\n\tvec3 g100=vec3(gx0.y,gy0.y,gz0.y);\n\tvec3 g010=vec3(gx0.z,gy0.z,gz0.z);\n\tvec3 g110=vec3(gx0.w,gy0.w,gz0.w);\n\tvec3 g001=vec3(gx1.x,gy1.x,gz1.x);\n\tvec3 g101=vec3(gx1.y,gy1.y,gz1.y);\n\tvec3 g011=vec3(gx1.z,gy1.z,gz1.z);\n\tvec3 g111=vec3(gx1.w,gy1.w,gz1.w);\n\t\n\tvec4 norm0=taylorInvSqrt(vec4(dot(g000,g000),dot(g010,g010),dot(g100,g100),dot(g110,g110)));\n\tg000*=norm0.x;\n\tg010*=norm0.y;\n\tg100*=norm0.z;\n\tg110*=norm0.w;\n\tvec4 norm1=taylorInvSqrt(vec4(dot(g001,g001),dot(g011,g011),dot(g101,g101),dot(g111,g111)));\n\tg001*=norm1.x;\n\tg011*=norm1.y;\n\tg101*=norm1.z;\n\tg111*=norm1.w;\n\t\n\tfloat n000=dot(g000,Pf0);\n\tfloat n100=dot(g100,vec3(Pf1.x,Pf0.yz));\n\tfloat n010=dot(g010,vec3(Pf0.x,Pf1.y,Pf0.z));\n\tfloat n110=dot(g110,vec3(Pf1.xy,Pf0.z));\n\tfloat n001=dot(g001,vec3(Pf0.xy,Pf1.z));\n\tfloat n101=dot(g101,vec3(Pf1.x,Pf0.y,Pf1.z));\n\tfloat n011=dot(g011,vec3(Pf0.x,Pf1.yz));\n\tfloat n111=dot(g111,Pf1);\n\t\n\tvec3 fade_xyz=fade(Pf0);\n\tvec4 n_z=mix(vec4(n000,n100,n010,n110),vec4(n001,n101,n011,n111),fade_xyz.z);\n\tvec2 n_yz=mix(n_z.xy,n_z.zw,fade_xyz.y);\n\tfloat n_xyz=mix(n_yz.x,n_yz.y,fade_xyz.x);\n\treturn 2.2*n_xyz;\n}\n\n// Classic Perlin noise, periodic variant\nfloat pnoise(vec3 P,vec3 rep)\n{\n\tvec3 Pi0=mod(floor(P),rep);// Integer part, modulo period\n\tvec3 Pi1=mod(Pi0+vec3(1.),rep);// Integer part + 1, mod period\n\tPi0=mod289(Pi0);\n\tPi1=mod289(Pi1);\n\tvec3 Pf0=fract(P);// Fractional part for interpolation\n\tvec3 Pf1=Pf0-vec3(1.);// Fractional part - 1.0\n\tvec4 ix=vec4(Pi0.x,Pi1.x,Pi0.x,Pi1.x);\n\tvec4 iy=vec4(Pi0.yy,Pi1.yy);\n\tvec4 iz0=Pi0.zzzz;\n\tvec4 iz1=Pi1.zzzz;\n\t\n\tvec4 ixy=permute(permute(ix)+iy);\n\tvec4 ixy0=permute(ixy+iz0);\n\tvec4 ixy1=permute(ixy+iz1);\n\t\n\tvec4 gx0=ixy0*(1./7.);\n\tvec4 gy0=fract(floor(gx0)*(1./7.))-.5;\n\tgx0=fract(gx0);\n\tvec4 gz0=vec4(.5)-abs(gx0)-abs(gy0);\n\tvec4 sz0=step(gz0,vec4(0.));\n\tgx0-=sz0*(step(0.,gx0)-.5);\n\tgy0-=sz0*(step(0.,gy0)-.5);\n\t\n\tvec4 gx1=ixy1*(1./7.);\n\tvec4 gy1=fract(floor(gx1)*(1./7.))-.5;\n\tgx1=fract(gx1);\n\tvec4 gz1=vec4(.5)-abs(gx1)-abs(gy1);\n\tvec4 sz1=step(gz1,vec4(0.));\n\tgx1-=sz1*(step(0.,gx1)-.5);\n\tgy1-=sz1*(step(0.,gy1)-.5);\n\t\n\tvec3 g000=vec3(gx0.x,gy0.x,gz0.x);\n\tvec3 g100=vec3(gx0.y,gy0.y,gz0.y);\n\tvec3 g010=vec3(gx0.z,gy0.z,gz0.z);\n\tvec3 g110=vec3(gx0.w,gy0.w,gz0.w);\n\tvec3 g001=vec3(gx1.x,gy1.x,gz1.x);\n\tvec3 g101=vec3(gx1.y,gy1.y,gz1.y);\n\tvec3 g011=vec3(gx1.z,gy1.z,gz1.z);\n\tvec3 g111=vec3(gx1.w,gy1.w,gz1.w);\n\t\n\tvec4 norm0=taylorInvSqrt(vec4(dot(g000,g000),dot(g010,g010),dot(g100,g100),dot(g110,g110)));\n\tg000*=norm0.x;\n\tg010*=norm0.y;\n\tg100*=norm0.z;\n\tg110*=norm0.w;\n\tvec4 norm1=taylorInvSqrt(vec4(dot(g001,g001),dot(g011,g011),dot(g101,g101),dot(g111,g111)));\n\tg001*=norm1.x;\n\tg011*=norm1.y;\n\tg101*=norm1.z;\n\tg111*=norm1.w;\n\t\n\tfloat n000=dot(g000,Pf0);\n\tfloat n100=dot(g100,vec3(Pf1.x,Pf0.yz));\n\tfloat n010=dot(g010,vec3(Pf0.x,Pf1.y,Pf0.z));\n\tfloat n110=dot(g110,vec3(Pf1.xy,Pf0.z));\n\tfloat n001=dot(g001,vec3(Pf0.xy,Pf1.z));\n\tfloat n101=dot(g101,vec3(Pf1.x,Pf0.y,Pf1.z));\n\tfloat n011=dot(g011,vec3(Pf0.x,Pf1.yz));\n\tfloat n111=dot(g111,Pf1);\n\t\n\tvec3 fade_xyz=fade(Pf0);\n\tvec4 n_z=mix(vec4(n000,n100,n010,n110),vec4(n001,n101,n011,n111),fade_xyz.z);\n\tvec2 n_yz=mix(n_z.xy,n_z.zw,fade_xyz.y);\n\tfloat n_xyz=mix(n_yz.x,n_yz.y,fade_xyz.x);\n\treturn 2.2*n_xyz;\n}\n\nfloat range(float x,float limit){\n\tif(x>0.){\n\t\treturn limit;\n\t}\n\telse{\n\t\treturn-limit;\n\t}\n}\n\nfloat normalDistribution(float x){\n\tconst float u=.34;\n\tconst float sigma=.1;\n\t\n\treturn(1./(sigma*pow(2.*PI,.5)))*pow(E,-pow((x-u),2.)/(2.*pow(sigma,2.)));\n}\n\nmat3 rotation3dY(float angle){\n\tfloat s=sin(angle);\n\tfloat c=cos(angle);\n\t\n\tfloat scaler=.2+pow(E*E*1.,min(time,animationTime)*boomAnimationSpeed);\n\t\n\treturn mat3(\n\t\tc*scaler,0.,-s*scaler,\n\t\t0.,1.,0.,\n\t\ts*scaler,0.,c*scaler\n\t);\n}\n\nvec3 fbm_vec3(vec3 p,float frequency,float offset){\n\treturn vec3(\n\t\tcnoise((p+vec3(offset))*frequency),\n\t\tcnoise((p+vec3(offset+20.))*frequency),\n\t\tcnoise((p+vec3(offset-30.))*frequency)\n\t);\n}\n\nvec3 getOffset(vec3 p){\n\tvec3 tempPos=rotation3dY(min(time,animationTime)*.9 + length(pos.xz))*p;\n\t\n\tvec3 offset=fbm_vec3(tempPos,.1,0.);\n\treturn offset;\n}\n\nvoid main(){\n\t\n\tvUv=position.xy+vec2(.5);\n\tvec3 finalPos=pos+position*.1;\n\t\n\tfloat particleSize=cnoise(pos)*.5 + .5;\n\t\n\tvec3 worldPos=rotation3dY(time*.3*(.01+.002 * particleSize))*pos;\n\t\n\tvec3 offset0=getOffset(worldPos);\n\tvec3 offset=fbm_vec3(worldPos,0.13,0.);\n\t\n\tworldPos+=offset;\n\tworldPos+=offset0;\n\t\n\tvec3 particlePosition=(modelMatrix*vec4(worldPos,1.)).xyz;\n\t\n\tvec4 viewPos=viewMatrix*vec4(particlePosition,1.);\n\t\n\tviewPos.xyz+=position*(.02+.05*particleSize);\n\t\n\tgl_Position=projectionMatrix*viewPos;\n\t\n}";
 
 },{}],"3NsHC":[function(require,module,exports) {
 module.exports = require('./helpers/bundle-url').getBundleURL('8twc1') + "particle-texture.91ed3def.png" + "?" + Date.now();
