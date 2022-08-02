@@ -194,6 +194,10 @@ float pnoise(vec3 P,vec3 rep)
 	return 2.2*n_xyz;
 }
 
+float rand(vec2 co){
+	return fract(sin(dot(co,vec2(12.9898,78.233)))*43758.5453);
+}
+
 float range(float x,float limit){
 	if(x>0.){
 		return limit;
@@ -213,9 +217,9 @@ float normalDistribution(float x){
 mat3 rotation3dY(float angle){
 	float s=sin(angle);
 	float c=cos(angle);
-	
-	float scaler=pow(E*E*0.5,min(time,animationTime)*boomAnimationSpeed);
-	
+
+	float scaler=pow(E*E*1.,smoothstep(0.0,animationTime,time)*boomAnimationSpeed);
+
 	return mat3(
 		c*scaler,0.,-s*scaler,
 		0.,1.,0.,
@@ -232,9 +236,7 @@ vec3 fbm_vec3(vec3 p,float frequency,float offset){
 }
 
 vec3 getOffset(vec3 p){
-	vec3 tempPos=rotation3dY(min(time,animationTime))*p;
-	
-	vec3 offset=fbm_vec3(tempPos,.35,0.5);
+	vec3 offset=fbm_vec3(pos,.35,.5);
 	return offset;
 }
 
@@ -243,12 +245,12 @@ void main(){
 	vUv=position.xy+vec2(.5);
 	vec3 finalPos=pos+position*.1;
 	
-	float particleSize=cnoise(pos)*.5 + 3.5;
+	float particleSize=cnoise(pos) + 2.5;
 	
-	vec3 worldPos=rotation3dY(time * 0.01)*pos;
+	vec3 worldPos=rotation3dY((smoothstep(0.0,animationTime,time) + time)*.01*(.1+particleSize*.5))*pos;
 	
 	vec3 offset0=getOffset(worldPos);
-	vec3 offset=fbm_vec3(worldPos,0.4,0.5);
+	vec3 offset=fbm_vec3(worldPos+offset0,.4,.5);
 	
 	worldPos+=offset;
 	worldPos+=offset0;

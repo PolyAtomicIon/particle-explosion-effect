@@ -23,8 +23,8 @@ export default class Sketch {
     this.scene = new THREE.Scene();
 
     this.container = options.dom;
-		this.width = this.container.offsetWidth || this.container.innerWidth;
-		this.height = this.container.offsetHeight || this.container.innerHeight;
+    this.width = this.container.offsetWidth || this.container.innerWidth;
+    this.height = this.container.offsetHeight || this.container.innerHeight;
     console.log(this.height, this.width)
     this.renderer = new THREE.WebGLRenderer({
       transparent: true,
@@ -33,7 +33,7 @@ export default class Sketch {
     // this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(this.width, this.height);
     // this.renderer.setClearColor(0x000000, 1);
-    // this.renderer.physicallyCorrectLights = true;
+    this.renderer.physicallyCorrectLights = true;
     this.renderer.outputEncoding = THREE.sRGBEncoding;
     this.event = createInputEvents(this.renderer.domElement);
     this.renderer.autoClear = false;
@@ -43,14 +43,15 @@ export default class Sketch {
     this.camera = new THREE.PerspectiveCamera(
       85,
       window.innerWidth / window.innerHeight,
-      0.001,
+      0.0001,
       10000
     );
 
     // var frustumSize = 10;
     // var aspect = window.innerWidth / window.innerHeight;
     // this.camera = new THREE.OrthographicCamera( frustumSize * aspect / - 2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / - 2, -1000, 1000 );
-    this.camera.position.set(0, 8.5, 2);
+    this.camera.position.set(0, 12.5, 2);
+
     this.camera.aspect = this.width / this.height;
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -142,21 +143,21 @@ export default class Sketch {
 
   resize() {
     console.log("hi")
-        
+
     this.fixHeightProblem();
 
     this.width = this.container.offsetWidth || this.container.innerWidth;
-		this.height = this.container.offsetHeight || this.container.innerHeight;
+    this.height = this.container.offsetHeight || this.container.innerHeight;
     this.renderer.setSize(this.width, this.height);
-		this.renderer.render(this.scene, this.camera);
+    this.renderer.render(this.scene, this.camera);
     this.camera.aspect = this.width / this.height;
-		this.camera.updateProjectionMatrix();
+    this.camera.updateProjectionMatrix();
 
     for (let i = 0; i < this.materials.length; i++) {
-      this.materials[i].uniforms.u_resolution.value =  {x: this.width, y: this.height};
+      this.materials[i].uniforms.u_resolution.value = { x: this.width, y: this.height };
     }
 
-		this.renderer.render(this.scene, this.camera);
+    this.renderer.render(this.scene, this.camera);
   }
 
   addObjects() {
@@ -185,7 +186,7 @@ export default class Sketch {
         side: THREE.DoubleSide,
         uniforms: {
           ...this.uniforms,
-          u_resolution: {value: {x: this.width, y: this.height}},
+          u_resolution: { value: { x: this.width, y: this.height } },
           animationTime: { value: animationTime },
           boomAnimationSpeed: { value: boomAnimationSpeed },
         },
@@ -227,19 +228,19 @@ export default class Sketch {
       // console.log(this.mesh);
     }
 
-    let startDuration = 1.4;
+    let startDuration = 1.5;
     let durationGap = 0.02;
-    let speed = 1.5;
+    let speed = 1.7;
 
-    const count = 1000;
-    const minRadius = 0.025;
+    const count = 3000;
+    const minRadius = 0.09;
     const maxRadius = 1.0;
 
     createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 0, speed);
     createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 1, speed);
     createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 2, speed);
-    createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 3, speed);
-    createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 4, speed);
+    createParticleCloud(count, minRadius + 0.05, maxRadius, startDuration + durationGap * 3, speed);
+    createParticleCloud(count, minRadius + 0.05, maxRadius, startDuration + durationGap * 4, speed);
 
   }
 

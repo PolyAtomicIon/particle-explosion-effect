@@ -55,5 +55,6 @@ void main(){
 
 	vec4 ttt=texture2D(uTexture,vUv);
 	gl_FragColor=vec4(vec3(color),ttt.r);
+	// gl_FragColor=vec4(vec3(1.0),ttt.r);
     // gl_FragColor = color;
 }
