@@ -2,7 +2,10 @@ precision highp float;
 
 uniform float time;
 uniform bool boomAnimation;
+uniform float twist;
+uniform bool twist2;
 uniform float animationTime;
+uniform float transitionTime;
 uniform float boomAnimationSpeed;
 // uniform float animationTime=1.8;
 // uniform float boomAnimationSpeed=1.3;
@@ -217,9 +220,10 @@ float normalDistribution(float x){
 mat3 rotation3dY(float angle){
 	float s=sin(angle);
 	float c=cos(angle);
-
-	float scaler=pow(E*E*1.,smoothstep(0.0,animationTime,time)*boomAnimationSpeed);
-
+	
+	float scaler=pow(E*E*1.,smoothstep(0.,animationTime,time)*boomAnimationSpeed);
+	// float scaler=1.;
+	
 	return mat3(
 		c*scaler,0.,-s*scaler,
 		0.,1.,0.,
@@ -236,8 +240,27 @@ vec3 fbm_vec3(vec3 p,float frequency,float offset){
 }
 
 vec3 getOffset(vec3 p){
-	vec3 offset=fbm_vec3(pos,.35,.5);
-	return offset;
+	float twistScale=cnoise(pos)*.5+5.;
+	// vec3 tempPos=rotation3dY(time*(.1+twistScale)+length(pos.xz))*p;
+	
+	vec3 offset=fbm_vec3(pos,3.5,0.5);
+	
+	float lastTime=transitionTime-.3;
+	float delta=smoothstep(0.,transitionTime-lastTime,time-lastTime);
+	
+	if(twist>0.){
+		float lastTime=transitionTime-.3;
+		float delta=smoothstep(0.,transitionTime-lastTime,time-lastTime);
+		return offset*delta*twistScale;
+	}
+	else if(twist<0.){
+		float lastTime=transitionTime-.3;
+		float delta=smoothstep(transitionTime-lastTime,0.,time-lastTime);
+		return offset*delta*twistScale;
+	}
+	else{
+		return offset; 
+	}
 }
 
 void main(){
@@ -245,12 +268,12 @@ void main(){
 	vUv=position.xy+vec2(.5);
 	vec3 finalPos=pos+position*.1;
 	
-	float particleSize=cnoise(pos) + 2.5;
+	float particleSize=cnoise(pos*5.)*.5+2.5;
 	
-	vec3 worldPos=rotation3dY((smoothstep(0.0,animationTime,time) + time)*.01*(.1+particleSize*.5))*pos;
+	vec3 worldPos=rotation3dY((time)*.3*(.1+particleSize*.5))*pos;
 	
 	vec3 offset0=getOffset(worldPos);
-	vec3 offset=fbm_vec3(worldPos+offset0,.4,.5);
+	vec3 offset=fbm_vec3(worldPos+offset0,0.,.0);
 	
 	worldPos+=offset;
 	worldPos+=offset0;
@@ -260,6 +283,16 @@ void main(){
 	vec4 viewPos=viewMatrix*vec4(particlePosition,1.);
 	
 	viewPos.xyz+=position*(.02+.05*particleSize);
+	if(twist2&&twist>0.){
+		float lastTime=transitionTime-.3;
+		float delta=smoothstep(0.,transitionTime-lastTime,time-lastTime);
+		viewPos.y+=-delta*7.;
+	}
+	else if(twist2&&twist<0.){
+		float lastTime=transitionTime-.3;
+		float delta=smoothstep(transitionTime-lastTime,0.,time-lastTime);
+		viewPos.y+=-delta*7.;
+	}
 	
 	gl_Position=projectionMatrix*viewPos;
 	

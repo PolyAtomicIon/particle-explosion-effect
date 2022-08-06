@@ -40,7 +40,7 @@ void main(){
 	vec2 pos_ndc = 2.0 * gl_FragCoord.xy / u_resolution.xy - 1.0;
     float dist = length(pos_ndc);
 
-    vec4 white = vec4(0.0902, 0.7725, 0.4667, 1.0);
+    vec4 white = vec4(0.1373, 0.0902, 0.7725, 1.0);
     vec4 red = vec4(0.1137, 0.4118, 0.1647, 1.0);
     vec4 blue = vec4(1.0, 0.9686, 0.0, 1.0);
     vec4 green = vec4(0.0, 1.0, 0.0, 1.0);

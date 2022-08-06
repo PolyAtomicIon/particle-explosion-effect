@@ -67,6 +67,7 @@ export default class Sketch {
     this.pointer = new THREE.Vector2();
 
     this.glow = new THREE.WebGLRenderTarget(this.width, this.height, {});
+    this.transitionTime = -5.;
 
     this.isPlaying = true;
 
@@ -119,13 +120,16 @@ export default class Sketch {
 
   settings() {
     this.settings = {
+      morph: false,
       progress: 0,
       glow: false,
       fdAlpha: 0,
       superScale: 1,
     };
     this.gui = new GUI();
-    // this.gui.add(this.settings, "progress", 0, 1, 0.01);
+    this.gui.add(this.settings, "morph").onChange(() => {
+      this.transitionTime = this.time + 0.3;
+    });
     // this.gui.add(this.settings, "fdAlpha", 0, 1, 0.01);
     // this.gui.add(this.settings, "superScale", 0, 3, 0.01);
     // this.gui.add(this.settings, "glow");
@@ -176,7 +180,8 @@ export default class Sketch {
       minRadius,
       maxRadius,
       animationTime,
-      boomAnimationSpeed
+      boomAnimationSpeed,
+      isTwist = false
     ) => {
 
       let material = new THREE.ShaderMaterial({
@@ -188,7 +193,10 @@ export default class Sketch {
           ...this.uniforms,
           u_resolution: { value: { x: this.width, y: this.height } },
           animationTime: { value: animationTime },
+          transitionTime: { value: 0 },
           boomAnimationSpeed: { value: boomAnimationSpeed },
+          twist: { value: 0. },
+          twist2: { value: isTwist },
         },
         // wireframe: true,
         transparent: true,
@@ -233,14 +241,16 @@ export default class Sketch {
     let speed = 1.7;
 
     const count = 3000;
-    const minRadius = 0.09;
-    const maxRadius = 1.0;
+    const minRadius = 0.5;
+    const maxRadius = 1.;
 
-    createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 0, speed);
-    createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 1, speed);
-    createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 2, speed);
-    createParticleCloud(count, minRadius + 0.05, maxRadius, startDuration + durationGap * 3, speed);
-    createParticleCloud(count, minRadius + 0.05, maxRadius, startDuration + durationGap * 4, speed);
+    createParticleCloud(count, 0.1, 0.4, 1.4, speed, true);
+    // createParticleCloud(count, 0.1, 0.4, 1.45, speed, true);
+    createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 0, speed, false);
+    // createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 1, speed, false);
+    // createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 2, speed);
+    // createParticleCloud(count, minRadius + 0.05, maxRadius, startDuration + durationGap * 3, speed);
+    // createParticleCloud(count, minRadius + 0.05, maxRadius, startDuration + durationGap * 4, speed);
 
   }
 
@@ -277,6 +287,13 @@ export default class Sketch {
     // this.material.uniforms.glow.value = this.settings.glow
     for (let i = 0; i < this.materials.length; i++) {
       this.materials[i].uniforms.time.value = this.time;
+      this.materials[i].uniforms.transitionTime.value = this.transitionTime;
+      if (this.settings.morph )
+        this.materials[i].uniforms.twist.value = 2.5;
+      else {
+        if (this.materials[i].uniforms.twist.value != 0)
+          this.materials[i].uniforms.twist.value = -1;
+      }
     }
     // this.material.uniforms.boomAnimation.value = this.isBoomAnimationActive;
     // this.material.uniforms.fdAlpha.value = this.settings.fdAlpha;
