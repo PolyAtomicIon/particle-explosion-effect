@@ -286,12 +286,12 @@ void main(){
 	if(twist2&&twist>0.){
 		float lastTime=transitionTime-.3;
 		float delta=smoothstep(0.,transitionTime-lastTime,time-lastTime);
-		viewPos.y+=-delta*7.;
+		viewPos.y+=-delta*2.5;
 	}
 	else if(twist2&&twist<0.){
 		float lastTime=transitionTime-.3;
 		float delta=smoothstep(transitionTime-lastTime,0.,time-lastTime);
-		viewPos.y+=-delta*7.;
+		viewPos.y+=-delta*2.5;
 	}
 	
 	gl_Position=projectionMatrix*viewPos;

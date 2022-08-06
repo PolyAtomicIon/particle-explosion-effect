@@ -240,11 +240,11 @@ export default class Sketch {
     let durationGap = 0.02;
     let speed = 1.7;
 
-    const count = 3000;
-    const minRadius = 0.5;
-    const maxRadius = 1.;
+    const count = 6000;
+    const minRadius = 0.2;
+    const maxRadius = .5;
 
-    createParticleCloud(count, 0.1, 0.4, 1.4, speed, true);
+    createParticleCloud(count, 0.01, 0.2, 1.4, speed, true);
     // createParticleCloud(count, 0.1, 0.4, 1.45, speed, true);
     createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 0, speed, false);
     // createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 1, speed, false);
