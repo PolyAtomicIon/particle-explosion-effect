@@ -4,6 +4,7 @@ uniform float time;
 uniform bool boomAnimation;
 uniform float twist;
 uniform bool twist2;
+uniform float deltaY;
 uniform float animationTime;
 uniform float transitionTime;
 uniform float boomAnimationSpeed;
@@ -241,26 +242,22 @@ vec3 fbm_vec3(vec3 p,float frequency,float offset){
 
 vec3 getOffset(vec3 p){
 	float twistScale=cnoise(pos)*.5+5.;
-	// vec3 tempPos=rotation3dY(time*(.1+twistScale)+length(pos.xz))*p;
 	
-	vec3 offset=fbm_vec3(pos,3.5,0.5);
+	vec3 offset=fbm_vec3(pos,3.5,.5);
 	
 	float lastTime=transitionTime-.3;
-	float delta=smoothstep(0.,transitionTime-lastTime,time-lastTime);
-	
-	if(twist>0.){
-		float lastTime=transitionTime-.3;
-		float delta=smoothstep(0.,transitionTime-lastTime,time-lastTime);
-		return offset*delta*twistScale;
+	float delta;
+	if(twist2){
+		if(twist>0.){
+			delta=smoothstep(0.,transitionTime-lastTime,time-lastTime);
+			offset*=delta*twistScale;
+		}
+		else if(twist<0.){
+			delta=smoothstep(transitionTime-lastTime,0.,time-lastTime);
+			offset*=delta*twistScale;
+		}
 	}
-	else if(twist<0.){
-		float lastTime=transitionTime-.3;
-		float delta=smoothstep(transitionTime-lastTime,0.,time-lastTime);
-		return offset*delta*twistScale;
-	}
-	else{
-		return offset; 
-	}
+	return offset;
 }
 
 void main(){
@@ -273,7 +270,7 @@ void main(){
 	vec3 worldPos=rotation3dY((time)*.3*(.1+particleSize*.5))*pos;
 	
 	vec3 offset0=getOffset(worldPos);
-	vec3 offset=fbm_vec3(worldPos+offset0,0.,.0);
+	vec3 offset=fbm_vec3(worldPos+offset0,.0,.0);
 	
 	worldPos+=offset;
 	worldPos+=offset0;
@@ -283,17 +280,18 @@ void main(){
 	vec4 viewPos=viewMatrix*vec4(particlePosition,1.);
 	
 	viewPos.xyz+=position*(.02+.05*particleSize);
-	if(twist2&&twist>0.){
+	if(twist2){
 		float lastTime=transitionTime-.3;
-		float delta=smoothstep(0.,transitionTime-lastTime,time-lastTime);
-		viewPos.y+=-delta*2.5;
+		float delta;
+		if(twist>0.){
+			delta=smoothstep(0.,transitionTime-lastTime,time-lastTime);
+		}
+		else if(twist<0.){
+			delta=smoothstep(transitionTime-lastTime,0.,time-lastTime);
+		}
+		viewPos.y+=-delta*deltaY;
+		
 	}
-	else if(twist2&&twist<0.){
-		float lastTime=transitionTime-.3;
-		float delta=smoothstep(transitionTime-lastTime,0.,time-lastTime);
-		viewPos.y+=-delta*2.5;
-	}
-	
 	gl_Position=projectionMatrix*viewPos;
 	
 }

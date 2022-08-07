@@ -181,7 +181,8 @@ export default class Sketch {
       maxRadius,
       animationTime,
       boomAnimationSpeed,
-      isTwist = false
+      isTwist = false,
+      deltaY = 0
     ) => {
 
       let material = new THREE.ShaderMaterial({
@@ -197,6 +198,7 @@ export default class Sketch {
           boomAnimationSpeed: { value: boomAnimationSpeed },
           twist: { value: 0. },
           twist2: { value: isTwist },
+          deltaY: { value: deltaY },
         },
         // wireframe: true,
         transparent: true,
@@ -236,21 +238,26 @@ export default class Sketch {
       // console.log(this.mesh);
     }
 
-    let startDuration = 1.5;
-    let durationGap = 0.02;
-    let speed = 1.7;
+    let startDuration = 0.95;
+    let durationGap = 0.05;
+    let speed = 3.3;
 
-    const count = 6000;
-    const minRadius = 0.2;
-    const maxRadius = .5;
+    const count = 1500;
+    const minRadius = 0.01;
+    const maxRadius = 0.013;
+    const radiusGap = 0.004;
 
-    createParticleCloud(count, 0.01, 0.2, 1.4, speed, true);
-    // createParticleCloud(count, 0.1, 0.4, 1.45, speed, true);
-    createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 0, speed, false);
-    // createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 1, speed, false);
-    // createParticleCloud(count, minRadius, maxRadius, startDuration + durationGap * 2, speed);
-    // createParticleCloud(count, minRadius + 0.05, maxRadius, startDuration + durationGap * 3, speed);
-    // createParticleCloud(count, minRadius + 0.05, maxRadius, startDuration + durationGap * 4, speed);
+    for (let i = 0; i < 3; i++) {
+      let currentRadiusDelta = -(3 - i) * radiusGap;
+      createParticleCloud(count  * 3, minRadius + currentRadiusDelta, maxRadius + currentRadiusDelta, startDuration, speed, true, 0);
+      startDuration += durationGap;
+    }
+
+
+    for (let i = 0; i < 4; i++) {
+      let currentRadiusDelta = i * radiusGap;
+      createParticleCloud(count, minRadius + currentRadiusDelta, maxRadius + currentRadiusDelta, startDuration, speed, true, 0);
+    }
 
   }
 
@@ -288,7 +295,7 @@ export default class Sketch {
     for (let i = 0; i < this.materials.length; i++) {
       this.materials[i].uniforms.time.value = this.time;
       this.materials[i].uniforms.transitionTime.value = this.transitionTime;
-      if (this.settings.morph )
+      if (this.settings.morph)
         this.materials[i].uniforms.twist.value = 2.5;
       else {
         if (this.materials[i].uniforms.twist.value != 0)
