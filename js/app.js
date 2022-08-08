@@ -238,25 +238,39 @@ export default class Sketch {
       // console.log(this.mesh);
     }
 
-    let startDuration = 0.95;
+    let startInnerDuration = 0.9;
+    let startOuterDuration = 0.95;
     let durationGap = 0.05;
-    let speed = 3.3;
+    let innerSpeed = 1.8;
+    let outerSpeed = 3.3;
 
-    const count = 1500;
+    const count = 4500;
     const minRadius = 0.01;
-    const maxRadius = 0.013;
+    const maxInnerRadius = 0.3;
+    const maxOuterRadius = 0.02;
     const radiusGap = 0.004;
 
-    for (let i = 0; i < 3; i++) {
-      let currentRadiusDelta = -(3 - i) * radiusGap;
-      createParticleCloud(count  * 3, minRadius + currentRadiusDelta, maxRadius + currentRadiusDelta, startDuration, speed, true, 0);
-      startDuration += durationGap;
-    }
-
+    createParticleCloud(
+      count * 3,
+      minRadius,
+      maxInnerRadius,
+      startInnerDuration,
+      innerSpeed,
+      true,
+      4
+    );
 
     for (let i = 0; i < 4; i++) {
       let currentRadiusDelta = i * radiusGap;
-      createParticleCloud(count, minRadius + currentRadiusDelta, maxRadius + currentRadiusDelta, startDuration, speed, true, 0);
+      createParticleCloud(
+        count,
+        minRadius + currentRadiusDelta, 
+        maxOuterRadius + currentRadiusDelta, 
+        startOuterDuration, 
+        outerSpeed, 
+        true, 
+        0
+      );
     }
 
   }
