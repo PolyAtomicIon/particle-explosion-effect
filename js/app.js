@@ -1,15 +1,9 @@
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-// import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-// import { EXRLoader } from "three/examples/jsm/loaders/EXRLoader.js";
-// import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
-
+import CameraControls from "camera-controls";
 import fragment from "./shader/fragment.glsl";
 import vertex from "./shader/vertexParticles.glsl";
 import GUI from "lil-gui";
 import gsap from "gsap";
-// import scene from "../scene.json";
-// import colorTiles from "../color-tiles.png";
 import particleTexture from "../particle-texture.png";
 const random = require("canvas-sketch-util/random");
 const createInputEvents = require("simple-input-events");
@@ -20,6 +14,7 @@ function lerp(a, b, t) {
 
 export default class Sketch {
   constructor(options) {
+    this.clock = new THREE.Clock();
     this.scene = new THREE.Scene();
 
     this.container = options.dom;
@@ -54,9 +49,11 @@ export default class Sketch {
 
     this.camera.aspect = this.width / this.height;
 
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.time = 0;
 
+    CameraControls.install({ THREE: THREE });
+    this.controls = new CameraControls(this.camera, this.renderer.domElement);
+
+    this.time = 0;
     this.isBoomAnimationActive = true;
     // setTimeout(() => {
     //   console.log('dsfsdfsd');
@@ -78,44 +75,56 @@ export default class Sketch {
     this.settings();
     this.raycasterEvent();
 
-    this.clock = new THREE.Clock();
   }
 
   raycasterEvent() {
-    this.ball = new THREE.Mesh(
-      new THREE.SphereBufferGeometry(10, 32, 32),
-      new THREE.MeshBasicMaterial({ color: 0x000000 })
-    );
-    this.scene.add(this.ball);
+    // this.ball = new THREE.Mesh(
+    //   new THREE.SphereBufferGeometry(10, 32, 32),
+    //   new THREE.MeshBasicMaterial({ color: 0x000000 })
+    // );
+    // this.scene.add(this.ball);
 
-    let testmesh = new THREE.Mesh(
-      new THREE.PlaneBufferGeometry(1000, 1000),
-      new THREE.MeshBasicMaterial({ transparent: true })
-    );
-    testmesh.rotation.x = -Math.PI / 2;
-    testmesh.visible = false;
-    this.scene.add(testmesh);
+    // let testmesh = new THREE.Mesh(
+    //   new THREE.PlaneBufferGeometry(1000, 1000),
+    //   new THREE.MeshBasicMaterial({ transparent: true })
+    // );
+    // testmesh.rotation.x = -Math.PI / 2;
+    // testmesh.visible = false;
+    // this.scene.add(testmesh);
 
-    this.event.on("move", ({ position, event, inside, dragging }) => {
-      // mousemove / touchmove
-      // console.log(position); // [ x, y ]
-      // console.log(event); // original mouse/touch event
-      // console.log(inside); // true if the mouse/touch is inside the element
-      // console.log(dragging); // true if the pointer was down/dragging
+    // this.event.on("move", ({ position, event, inside, dragging }) => {
+    //   // mousemove / touchmove
+    //   // console.log(position); // [ x, y ]
+    //   // console.log(event); // original mouse/touch event
+    //   // console.log(inside); // true if the mouse/touch is inside the element
+    //   // console.log(dragging); // true if the pointer was down/dragging
 
-      this.pointer.x = (position[0] / window.innerWidth) * 2 - 1;
-      this.pointer.y = -(position[1] / window.innerHeight) * 2 + 1;
+    //   this.pointer.x = (position[0] / window.innerWidth) * 2 - 1;
+    //   this.pointer.y = -(position[1] / window.innerHeight) * 2 + 1;
 
-      this.raycaster.setFromCamera(this.pointer, this.camera);
+    //   this.raycaster.setFromCamera(this.pointer, this.camera);
 
-      const intersects = this.raycaster.intersectObjects([testmesh]);
+    //   const intersects = this.raycaster.intersectObjects([testmesh]);
 
-      // console.log(intersects[0]);
-      if (intersects[0]) {
-        let p = intersects[0].point;
-        this.ball.position.copy(p);
-      }
-    });
+    //   // console.log(intersects[0]);
+    //   if (intersects[0]) {
+    //     let p = intersects[0].point;
+    //     this.ball.position.copy(p);
+    //   }
+    // });
+    this.event.on("tap", ({ position, event, }) => {
+      console.log(position, event)
+
+      const { clientX, clientY } = position;
+      this.settings.morph = true;
+      this.morph();
+
+      this.controls.rotatePolarTo(
+        95 * THREE.MathUtils.DEG2RAD,
+        true
+      );
+      this.controls.dollyTo(12, true);
+    })
   }
 
   settings() {
@@ -127,12 +136,14 @@ export default class Sketch {
       superScale: 1,
     };
     this.gui = new GUI();
-    this.gui.add(this.settings, "morph").onChange(() => {
-      this.transitionTime = this.time + 0.3;
-    });
+    this.gui.add(this.settings, "morph").onChange(() => this.morph());
     // this.gui.add(this.settings, "fdAlpha", 0, 1, 0.01);
     // this.gui.add(this.settings, "superScale", 0, 3, 0.01);
     // this.gui.add(this.settings, "glow");
+  }
+
+  morph() {
+    this.transitionTime = this.time + 0.3;
   }
 
   fixHeightProblem() {
@@ -247,11 +258,11 @@ export default class Sketch {
     const count = 4500;
     const minRadius = 0.01;
     const maxInnerRadius = 0.3;
-    const maxOuterRadius = 0.02;
+    const maxOuterRadius = 0.01;
     const radiusGap = 0.004;
 
     createParticleCloud(
-      count * 3,
+      count * 4,
       minRadius,
       maxInnerRadius,
       startInnerDuration,
@@ -261,14 +272,14 @@ export default class Sketch {
     );
 
     for (let i = 0; i < 4; i++) {
-      let currentRadiusDelta = i * radiusGap;
+      let currentRadiusDelta = i * radiusGap * 2;
       createParticleCloud(
         count,
-        minRadius + currentRadiusDelta, 
-        maxOuterRadius + currentRadiusDelta, 
-        startOuterDuration, 
-        outerSpeed, 
-        true, 
+        minRadius + currentRadiusDelta,
+        maxOuterRadius + currentRadiusDelta,
+        startOuterDuration,
+        outerSpeed,
+        true,
         0
       );
     }
@@ -320,6 +331,12 @@ export default class Sketch {
     // this.material.uniforms.fdAlpha.value = this.settings.fdAlpha;
     // this.material.uniforms.superOpacity.value = 1;
     requestAnimationFrame(this.render.bind(this));
+
+    const delta = this.clock.getDelta();
+    const updated = this.controls.update(delta);
+
+    // this.controls.azimuthAngle += 7.5 * delta * THREE.MathUtils.DEG2RAD;
+
     this.renderer.render(this.scene, this.camera);
 
   }
