@@ -1,344 +1,144 @@
 import * as THREE from "three";
-import CameraControls from "camera-controls";
-import fragment from "./shader/fragment.glsl";
-import vertex from "./shader/vertexParticles.glsl";
 import GUI from "lil-gui";
+import Core from './core';
+import ParticleCloud from "./particleCloud";
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import gsap from "gsap";
-import particleTexture from "../particle-texture.png";
-const random = require("canvas-sketch-util/random");
-const createInputEvents = require("simple-input-events");
 
-function lerp(a, b, t) {
-  return a * (1 - t) + b * t;
-}
-
-export default class Sketch {
+export default class Sketch extends Core {
   constructor(options) {
-    this.clock = new THREE.Clock();
-    this.scene = new THREE.Scene();
+    super(options);
 
-    this.container = options.dom;
-    this.width = this.container.offsetWidth || this.container.innerWidth;
-    this.height = this.container.offsetHeight || this.container.innerHeight;
-    console.log(this.height, this.width)
-    this.renderer = new THREE.WebGLRenderer({
-      transparent: true,
-      alpha: true,
-    });
-    // this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setSize(this.width, this.height);
-    // this.renderer.setClearColor(0x000000, 1);
-    this.renderer.physicallyCorrectLights = true;
-    this.renderer.outputEncoding = THREE.sRGBEncoding;
-    this.event = createInputEvents(this.renderer.domElement);
-    this.renderer.autoClear = false;
+    this.materials = [];
 
-    this.container.appendChild(this.renderer.domElement);
+    this.settings();
 
-    this.camera = new THREE.PerspectiveCamera(
-      85,
-      window.innerWidth / window.innerHeight,
-      0.0001,
-      10000
-    );
-
-    // var frustumSize = 10;
-    // var aspect = window.innerWidth / window.innerHeight;
-    // this.camera = new THREE.OrthographicCamera( frustumSize * aspect / - 2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / - 2, -1000, 1000 );
-    this.camera.position.set(0, 12.5, 2);
-
-    this.camera.aspect = this.width / this.height;
-
-
-    CameraControls.install({ THREE: THREE });
-    this.controls = new CameraControls(this.camera, this.renderer.domElement);
-
-    this.time = 0;
-    this.isBoomAnimationActive = true;
-    // setTimeout(() => {
-    //   console.log('dsfsdfsd');
-    //   this.isBoomAnimationActive = false;
-    // }, 1000);
-
-    this.raycaster = new THREE.Raycaster();
-    this.pointer = new THREE.Vector2();
-
-    this.glow = new THREE.WebGLRenderTarget(this.width, this.height, {});
-    this.transitionTime = -5.;
-
-    this.isPlaying = true;
-
+    this.particleCloud = new ParticleCloud();
     this.addObjects();
+
+
+    this.setPostProcessing();
+    
     this.resize();
     this.render();
     this.setupResize();
-    this.settings();
     this.raycasterEvent();
+  }
 
+  setPostProcessing() {
+    const renderScene = new RenderPass(this.scene, this.camera);
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(this.width, this.height), 1.5, 0.4, 0.85);
+    this.bloomPass.threshold = this.settings.bloomThreshold;
+    this.bloomPass.strength = this.settings.bloomStrength;
+    this.bloomPass.radius = this.settings.bloomRadius;
+
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(renderScene);
+    this.composer.addPass(this.bloomPass);
   }
 
   raycasterEvent() {
-    // this.ball = new THREE.Mesh(
-    //   new THREE.SphereBufferGeometry(10, 32, 32),
-    //   new THREE.MeshBasicMaterial({ color: 0x000000 })
-    // );
-    // this.scene.add(this.ball);
-
-    // let testmesh = new THREE.Mesh(
-    //   new THREE.PlaneBufferGeometry(1000, 1000),
-    //   new THREE.MeshBasicMaterial({ transparent: true })
-    // );
-    // testmesh.rotation.x = -Math.PI / 2;
-    // testmesh.visible = false;
-    // this.scene.add(testmesh);
-
-    // this.event.on("move", ({ position, event, inside, dragging }) => {
-    //   // mousemove / touchmove
-    //   // console.log(position); // [ x, y ]
-    //   // console.log(event); // original mouse/touch event
-    //   // console.log(inside); // true if the mouse/touch is inside the element
-    //   // console.log(dragging); // true if the pointer was down/dragging
-
-    //   this.pointer.x = (position[0] / window.innerWidth) * 2 - 1;
-    //   this.pointer.y = -(position[1] / window.innerHeight) * 2 + 1;
-
-    //   this.raycaster.setFromCamera(this.pointer, this.camera);
-
-    //   const intersects = this.raycaster.intersectObjects([testmesh]);
-
-    //   // console.log(intersects[0]);
-    //   if (intersects[0]) {
-    //     let p = intersects[0].point;
-    //     this.ball.position.copy(p);
-    //   }
-    // });
     this.event.on("tap", ({ position, event, }) => {
-      console.log(position, event)
+      // console.log(position, event)
 
-      const { clientX, clientY } = position;
-      this.settings.morph = true;
+      // const { clientX, clientY } = position;
+      // this.settings.morph = true;
       this.morph();
 
-      this.controls.rotatePolarTo(
-        95 * THREE.MathUtils.DEG2RAD,
-        true
-      );
-      this.controls.dollyTo(12, true);
+      // this.controls.rotatePolarTo(
+      //   95 * THREE.MathUtils.DEG2RAD,
+      //   true
+      // );
+      // this.controls.dollyTo(12, true);
     })
   }
 
   settings() {
     this.settings = {
       morph: false,
-      progress: 0,
-      glow: false,
-      fdAlpha: 0,
-      superScale: 1,
+      exposure: 1,
+      bloomStrength: 1.1,
+      bloomThreshold: 0,
+      bloomRadius: 0
     };
     this.gui = new GUI();
     this.gui.add(this.settings, "morph").onChange(() => this.morph());
-    // this.gui.add(this.settings, "fdAlpha", 0, 1, 0.01);
-    // this.gui.add(this.settings, "superScale", 0, 3, 0.01);
-    // this.gui.add(this.settings, "glow");
-  }
-
-  morph() {
-    this.transitionTime = this.time + 0.3;
-  }
-
-  fixHeightProblem() {
-    // The trick to viewport units on mobile browsers
-    const vh = window.innerHeight * 0.01;
-    document.documentElement.style.setProperty('--vh', `${vh}px`);
-  }
-
-  setupResize() {
-    window.addEventListener("resize", this.resize.bind(this), false);
+    this.gui.add(this.settings, 'exposure', 0.1, 2).onChange( (value) => {
+      this.changeExposure(value);
+    });
+    this.gui.add(this.settings, 'bloomThreshold', 0.0, 1.0).onChange( (value) => {
+      this.bloomPass.threshold = Number(value);
+    });
+    this.gui.add(this.settings, 'bloomStrength', 0.0, 3.0).onChange( (value) => {
+      this.changeBloomStrength(value);
+    });
+    this.gui.add(this.settings, 'bloomRadius', 0.0, 1.0).step(0.01).onChange( (value) => {
+      this.bloomPass.radius = Number(value);
+    });
   }
 
   resize() {
-    console.log("hi")
+    this.particleCloud.resize({
+      x: this.width,
+      y: this.height
+    });
+  }
 
-    this.fixHeightProblem();
+  morph() {
+    // if( !this.particleCloud.isMorphingEnabled ){
+    //   this.changeExposure(0.2);
+    //   this.changeBloomStrength(0.5);
+    // }
+    // else{
+    //   this.changeExposure(1);
+    //   this.changeBloomStrength(1.1);
+    // }
+    this.particleCloud.morph(this.time);
+  }
 
-    this.width = this.container.offsetWidth || this.container.innerWidth;
-    this.height = this.container.offsetHeight || this.container.innerHeight;
-    this.renderer.setSize(this.width, this.height);
-    this.renderer.render(this.scene, this.camera);
-    this.camera.aspect = this.width / this.height;
-    this.camera.updateProjectionMatrix();
+  changeExposure(value) {
+    this.renderer.toneMappingExposure = Math.pow(value, 4.0);
+  }
 
-    for (let i = 0; i < this.materials.length; i++) {
-      this.materials[i].uniforms.u_resolution.value = { x: this.width, y: this.height };
-    }
-
-    this.renderer.render(this.scene, this.camera);
+  changeBloomStrength(value) {
+    this.bloomPass.strength = Number(value);
   }
 
   addObjects() {
+    const count = 8000;
+    const duration = 0.9;
+    const speed = 1.8;
 
-    this.uniforms = {
-      uTexture: { value: new THREE.TextureLoader().load(particleTexture) },
-      time: { value: 0 },
-      boomAnimation: { value: this.isBoomAnimationActive },
-      resolution: { value: new THREE.Vector4() },
-    };
-
-    this.materials = [];
-
-    let createParticleCloud = (
-      count,
-      minRadius,
-      maxRadius,
-      animationTime,
-      boomAnimationSpeed,
-      isTwist = false,
-      deltaY = 0
-    ) => {
-
-      let material = new THREE.ShaderMaterial({
-        extensions: {
-          derivatives: "#extension GL_OES_standard_derivatives : enable",
-        },
-        side: THREE.DoubleSide,
-        uniforms: {
-          ...this.uniforms,
-          u_resolution: { value: { x: this.width, y: this.height } },
-          animationTime: { value: animationTime },
-          transitionTime: { value: 0 },
-          boomAnimationSpeed: { value: boomAnimationSpeed },
-          twist: { value: 0. },
-          twist2: { value: isTwist },
-          deltaY: { value: deltaY },
-        },
-        // wireframe: true,
-        transparent: true,
-        vertexShader: vertex,
-        fragmentShader: fragment,
-        blending: THREE.AdditiveBlending,
-        // depthWrite: false,
-        depthTest: false,
-      });
-
-      this.materials.push(material);
-
-      let pos = new Float32Array(count * 3);
-      let particlegeo = new THREE.PlaneBufferGeometry(1, 1);
-      let geo = new THREE.InstancedBufferGeometry();
-      geo.instanceCount = count;
-      geo.setAttribute("position", particlegeo.getAttribute('position'));
-      geo.index = particlegeo.index;
-
-      for (let i = 0; i < count; i++) {
-        let theta = Math.random() * 2 * Math.PI;
-        let r = lerp(minRadius, maxRadius, Math.random());
-        let x = r * Math.sin(theta);
-        let y = (Math.random() - 0.5) * 0.05;
-        let z = r * Math.cos(theta);
-
-        pos.set([
-          x, y, z
-        ], i * 3);
-      }
-
-      geo.setAttribute("pos", new THREE.InstancedBufferAttribute(pos, 3, false));
-      geo.setAttribute("uv", new THREE.BufferAttribute(pos, 2));
-      this.mesh = new THREE.Mesh(geo, material);
-      this.scene.add(this.mesh);
-
-      // console.log(this.mesh);
-    }
-
-    let startInnerDuration = 0.9;
-    let startOuterDuration = 0.95;
-    let durationGap = 0.05;
-    let innerSpeed = 1.8;
-    let outerSpeed = 3.3;
-
-    const count = 4500;
-    const minRadius = 0.01;
-    const maxInnerRadius = 0.3;
-    const maxOuterRadius = 0.01;
-    const radiusGap = 0.004;
-
-    createParticleCloud(
-      count * 4,
-      minRadius,
-      maxInnerRadius,
-      startInnerDuration,
-      innerSpeed,
-      true,
+    this.particleCloud.createShaderMaterial(
+      { x: this.width, y: this.height },
+      duration,
+      speed,
       4
     );
-
-    for (let i = 0; i < 4; i++) {
-      let currentRadiusDelta = i * radiusGap * 2;
-      createParticleCloud(
+    
+    let minRadius = 0.01;
+    let maxRadius = 0.1;
+    for (let i = 0; i < 1; i++) {
+      const mesh = this.particleCloud.createParticleCloud(
         count,
-        minRadius + currentRadiusDelta,
-        maxOuterRadius + currentRadiusDelta,
-        startOuterDuration,
-        outerSpeed,
-        true,
-        0
+        minRadius,
+        maxRadius,
       );
+
+      this.scene.add(mesh);
+      minRadius += 0.01;
+      maxRadius += 0.2;
     }
 
-  }
-
-  stop() {
-    this.isPlaying = false;
-  }
-
-  play() {
-    if (!this.isPlaying) {
-      this.isPlaying = true;
-      this.render();
-    }
   }
 
   render() {
-    if (!this.isPlaying) return;
-    this.time += 0.01;
-
-    this.renderer.clear();
-    // this.renderer.setClearColor(0x000000, 1);
-    // this.material.uniforms.glow.value = 1;
-    // this.material.uniforms.superOpacity.value = this.settings.fdAlpha;
-    // this.material.uniforms.superScale.value = this.settings.superScale;
-    // this.renderer.setRenderTarget(this.glow);
-    // this.renderer.setRenderTarget(null);
-
-    // this.renderer.autoClear = false;
-    this.renderer.clearDepth();
-    // this.material.uniforms.glow.value = 0;
-    // this.renderer.setClearColor(0x000000, 0);
-
-    // this.time = this.time%1;
-    // this.material.uniforms.fade.value = this.settings.progress;
-    // this.material.uniforms.glow.value = this.settings.glow
-    for (let i = 0; i < this.materials.length; i++) {
-      this.materials[i].uniforms.time.value = this.time;
-      this.materials[i].uniforms.transitionTime.value = this.transitionTime;
-      if (this.settings.morph)
-        this.materials[i].uniforms.twist.value = 2.5;
-      else {
-        if (this.materials[i].uniforms.twist.value != 0)
-          this.materials[i].uniforms.twist.value = -1;
-      }
-    }
-    // this.material.uniforms.boomAnimation.value = this.isBoomAnimationActive;
-    // this.material.uniforms.fdAlpha.value = this.settings.fdAlpha;
-    // this.material.uniforms.superOpacity.value = 1;
+    this.renderManager();
+    this.composer.render();
+    this.particleCloud.render(this.time);
     requestAnimationFrame(this.render.bind(this));
-
-    const delta = this.clock.getDelta();
-    const updated = this.controls.update(delta);
-
-    // this.controls.azimuthAngle += 7.5 * delta * THREE.MathUtils.DEG2RAD;
-
-    this.renderer.render(this.scene, this.camera);
-
   }
 }
 
