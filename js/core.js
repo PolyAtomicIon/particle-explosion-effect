@@ -6,7 +6,7 @@ export default class Core {
   constructor(options) {
 
     this.scene = new THREE.Scene();
-		// this.scene.background = this.color("#ff00ff");
+    // this.scene.background = this.color("#ff00ff");
 
     this.clock = new THREE.Clock();
     this.raycaster = new THREE.Raycaster();
@@ -15,6 +15,7 @@ export default class Core {
     this.container = options.dom;
     this.width = this.container.offsetWidth || this.container.innerWidth;
     this.height = this.container.offsetHeight || this.container.innerHeight;
+    this.aspect = this.width / this.height;
 
     // console.log(this.height, this.width)
 
@@ -35,34 +36,49 @@ export default class Core {
     this.event = createInputEvents(this.renderer.domElement);
 
     this.camera = new THREE.PerspectiveCamera(
-      85,
-      window.innerWidth / window.innerHeight,
+      45,
+      this.aspect,
       0.0001,
       10000
     );
 
-    this.camera.position.set(0, 12.5, 2);
+    this.camera.position.set(
+      -50,
+      140,
+      -15
+    );
     this.camera.aspect = this.width / this.height;
 
     CameraControls.install({ THREE: THREE });
     this.controls = new CameraControls(this.camera, this.renderer.domElement);
+    this.controls.setTarget(0, 0, 0, true);
+    const degreeInRad = THREE.MathUtils.degToRad(25);
+    this.controls.minPolarAngle = degreeInRad;
+    this.controls.maxPolarAngle = degreeInRad;
+    this.controls.minAzimuthAngle = degreeInRad;
+    this.controls.maxAzimuthAngle = degreeInRad;
+    this.controls.rotatePolarTo(degreeInRad, true);
+    this.updateControls();
 
     this.time = 0;
     this.isPlaying = true;
 
     this.setLighting();
 
+    const axesHelper = new THREE.AxesHelper(50);
+    this.scene.add(axesHelper);
+
   }
 
   setLighting() {
-    this.scene.add( new THREE.AmbientLight( 0x404040 ) );
-    const pointLight = new THREE.PointLight( 0xffffff, 1 );
-    this.camera.add( pointLight );
+    this.scene.add(new THREE.AmbientLight(0x404040));
+    const pointLight = new THREE.PointLight(0xffffff, 1);
+    this.camera.add(pointLight);
   }
 
-	color(color) {
-		return new THREE.Color(color);
-	}
+  color(color) {
+    return new THREE.Color(color);
+  }
 
   fixHeightProblem() {
     // The trick to viewport units on mobile browsers
@@ -99,19 +115,17 @@ export default class Core {
   }
 
   updateControls() {
-		this.controls.update(this.clock.getDelta());
-	}
+    this.controls.update(this.clock.getDelta());
+  }
 
-	renderManager() {
+  renderManager() {
     if (!this.isPlaying) return;
     this.time += 0.01;
 
     this.renderer.clear();
     this.renderer.clearDepth();
 
-		this.updateControls();
-
-    // this.renderer.render(this.scene, this.camera);
-	}
+    this.updateControls();
+  }
 
 }

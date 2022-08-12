@@ -74,7 +74,7 @@ export default class ParticleCloud {
       let theta = Math.random() * 2 * Math.PI;
       let r = lerp(minRadius, maxRadius, Math.random());
       let x = r * Math.sin(theta);
-      let y = (Math.random() - 0.5) * 0.05;
+      let y = (Math.random() - 0.5) * 0.05 + 3.;
       let z = r * Math.cos(theta);
 
       pos.set([

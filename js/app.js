@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import GUI from "lil-gui";
 import Core from './core';
 import ParticleCloud from "./particleCloud";
@@ -17,10 +18,9 @@ export default class Sketch extends Core {
 
     this.particleCloud = new ParticleCloud();
     this.addObjects();
-
+    this.addPointsForCamera();
 
     this.setPostProcessing();
-    
     this.resize();
     this.render();
     this.setupResize();
@@ -40,19 +40,49 @@ export default class Sketch extends Core {
   }
 
   raycasterEvent() {
-    this.event.on("tap", ({ position, event, }) => {
-      // console.log(position, event)
+    this.event.on("tap", () => {
 
-      // const { clientX, clientY } = position;
-      // this.settings.morph = true;
-      this.morph();
-
-      // this.controls.rotatePolarTo(
-      //   95 * THREE.MathUtils.DEG2RAD,
-      //   true
-      // );
-      // this.controls.dollyTo(12, true);
+      this.cameraAnimation();
     })
+  }
+
+  cameraAnimation(position = { x: 0, y: 0, z: 0 }) {
+    if (!this.particleCloud.isMorphingEnabled) {
+      this.settings.morph = true;
+      this.gui.morph = true;
+      this.morph();
+      this.controls.moveTo(position.x, position.y, position.z, true);
+
+      const degreeInRad = THREE.MathUtils.degToRad(90);
+      this.controls.minPolarAngle = degreeInRad;
+      this.controls.maxPolarAngle = degreeInRad;
+      this.controls.rotatePolarTo(
+        degreeInRad,
+        true
+      );
+      this.controls.dollyTo(43, true)
+    }
+    else {
+      this.settings.morph = false;
+      this.gui.morph = false;
+      this.morph();
+      this.controls.moveTo(
+        0,
+        0,
+        0,
+        true
+      );
+
+      const degreeInRad = THREE.MathUtils.degToRad(25);
+      this.controls.minPolarAngle = degreeInRad;
+      this.controls.maxPolarAngle = degreeInRad;
+      this.controls.rotatePolarTo(
+        degreeInRad,
+        true
+      );
+      this.controls.dollyTo(150, true)
+    }
+    this.updateControls();
   }
 
   settings() {
@@ -65,16 +95,16 @@ export default class Sketch extends Core {
     };
     this.gui = new GUI();
     this.gui.add(this.settings, "morph").onChange(() => this.morph());
-    this.gui.add(this.settings, 'exposure', 0.1, 2).onChange( (value) => {
+    this.gui.add(this.settings, 'exposure', 0.1, 2).onChange((value) => {
       this.changeExposure(value);
     });
-    this.gui.add(this.settings, 'bloomThreshold', 0.0, 1.0).onChange( (value) => {
+    this.gui.add(this.settings, 'bloomThreshold', 0.0, 1.0).onChange((value) => {
       this.bloomPass.threshold = Number(value);
     });
-    this.gui.add(this.settings, 'bloomStrength', 0.0, 3.0).onChange( (value) => {
+    this.gui.add(this.settings, 'bloomStrength', 0.0, 3.0).onChange((value) => {
       this.changeBloomStrength(value);
     });
-    this.gui.add(this.settings, 'bloomRadius', 0.0, 1.0).step(0.01).onChange( (value) => {
+    this.gui.add(this.settings, 'bloomRadius', 0.0, 1.0).step(0.01).onChange((value) => {
       this.bloomPass.radius = Number(value);
     });
   }
@@ -87,27 +117,33 @@ export default class Sketch extends Core {
   }
 
   morph() {
-    // if( !this.particleCloud.isMorphingEnabled ){
-    //   this.changeExposure(0.2);
-    //   this.changeBloomStrength(0.5);
-    // }
-    // else{
-    //   this.changeExposure(1);
-    //   this.changeBloomStrength(1.1);
-    // }
+    if (!this.particleCloud.isMorphingEnabled) {
+      this.changeExposure(0.45);
+      this.changeBloomStrength(0.5);
+    }
+    else {
+      this.changeExposure(1);
+      this.changeBloomStrength(1.1);
+    }
     this.particleCloud.morph(this.time);
   }
 
   changeExposure(value) {
-    this.renderer.toneMappingExposure = Math.pow(value, 4.0);
+    gsap.to(this.renderer, {
+      toneMappingExposure: Math.pow(value, 4.0),
+      duration: 0.5,
+    })
   }
 
   changeBloomStrength(value) {
-    this.bloomPass.strength = Number(value);
+    gsap.to(this.bloomPass, {
+      strength: Number(value),
+      duration: 0.5,
+    })
   }
 
   addObjects() {
-    const count = 8000;
+    const count = 4000;
     const duration = 0.9;
     const speed = 1.8;
 
@@ -115,21 +151,58 @@ export default class Sketch extends Core {
       { x: this.width, y: this.height },
       duration,
       speed,
-      4
+      0
     );
-    
+
     let minRadius = 0.01;
-    let maxRadius = 0.1;
-    for (let i = 0; i < 1; i++) {
-      const mesh = this.particleCloud.createParticleCloud(
+    let maxRadius = 0.35;
+    const minGapRadius = 0.1;
+    const maxGapRadius = 0.4;
+
+    for (let i = 0; i < 4; i++) {
+
+      let mesh = this.particleCloud.createParticleCloud(
         count,
         minRadius,
         maxRadius,
       );
 
       this.scene.add(mesh);
-      minRadius += 0.01;
-      maxRadius += 0.2;
+
+      minRadius = maxRadius + minGapRadius;
+      maxRadius = maxRadius + maxGapRadius;
+    }
+
+  }
+
+  addPointsForCamera() {
+    const geometry = new THREE.BoxGeometry(10, 10, 10);
+    this.points = [
+      { x: -40.31063211935775, y: 0, z: -7.5299241136265564 },
+      { x: -0.431651851596488, y: 0, z: 36.735493437942885 },
+      { x: 38.360254480861435, y: 0, z: -4.134071872299652 },
+      { x: 4.151668326034631, y: 0, z: -44.44804748500181 },
+      { x: -29.568267868006334, y: 0, z: 26.032432790631393 },
+      { x: 29.317626022399224, y: 0, z: -36.55709687455183 }
+    ]
+
+    for (let i = 0; i < 6; i++) {
+      // const control = new TransformControls(this.camera, this.renderer.domElement);
+      const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
+      const mesh = new THREE.Mesh(geometry, material);
+
+      mesh.position.x = this.points[i].x;
+      mesh.position.y = this.points[i].y;
+      mesh.position.z = this.points[i].z;
+      // mesh
+
+      // control.attach(mesh);
+      this.scene.add(mesh);
+      // this.scene.add(control);
+
+      // control.addEventListener('dragging-changed', () => {
+      //   console.log(mesh.position);
+      // });
     }
 
   }
