@@ -24,7 +24,6 @@ export default class Sketch extends Core {
     this.resize();
     this.render();
     this.setupResize();
-    this.raycasterEvent();
   }
 
   setPostProcessing() {
@@ -39,49 +38,45 @@ export default class Sketch extends Core {
     this.composer.addPass(this.bloomPass);
   }
 
-  raycasterEvent() {
-    this.event.on("tap", () => {
-
-      this.cameraAnimation();
-    })
-  }
-
   cameraAnimation(position = { x: 0, y: 0, z: 0 }) {
     if (!this.particleCloud.isMorphingEnabled) {
       this.settings.morph = true;
       this.gui.morph = true;
       this.morph();
+    }
+    
       this.controls.moveTo(position.x, position.y, position.z, true);
+      this.controls.setLookAt(position.x, position.y, position.z, 0, 0, 0, true);
 
       const degreeInRad = THREE.MathUtils.degToRad(90);
-      this.controls.minPolarAngle = degreeInRad;
-      this.controls.maxPolarAngle = degreeInRad;
+      // this.controls.minPolarAngle = degreeInRad;
+      // this.controls.maxPolarAngle = degreeInRad;
       this.controls.rotatePolarTo(
         degreeInRad,
         true
       );
-      this.controls.dollyTo(43, true)
-    }
-    else {
-      this.settings.morph = false;
-      this.gui.morph = false;
-      this.morph();
-      this.controls.moveTo(
-        0,
-        0,
-        0,
-        true
-      );
+      this.controls.dollyTo(80, true)
+    // }
+    // else {
+    //   this.settings.morph = false;
+    //   this.gui.morph = false;
+    //   this.morph();
+    //   this.controls.moveTo(
+    //     0,
+    //     0,
+    //     0,
+    //     true
+    //   );
 
-      const degreeInRad = THREE.MathUtils.degToRad(25);
-      this.controls.minPolarAngle = degreeInRad;
-      this.controls.maxPolarAngle = degreeInRad;
-      this.controls.rotatePolarTo(
-        degreeInRad,
-        true
-      );
-      this.controls.dollyTo(150, true)
-    }
+    //   const degreeInRad = THREE.MathUtils.degToRad(25);
+    //   // this.controls.minPolarAngle = degreeInRad;
+    //   // this.controls.maxPolarAngle = degreeInRad;
+    //   this.controls.rotatePolarTo(
+    //     degreeInRad,
+    //     true
+    //   );
+    //   this.controls.dollyTo(150, true)
+    // }
     this.updateControls();
   }
 
@@ -118,7 +113,8 @@ export default class Sketch extends Core {
 
   morph() {
     if (!this.particleCloud.isMorphingEnabled) {
-      this.changeExposure(0.45);
+      // this.changeExposure(0.45);
+      this.changeExposure(0.7);
       this.changeBloomStrength(0.5);
     }
     else {
@@ -155,9 +151,9 @@ export default class Sketch extends Core {
     );
 
     let minRadius = 0.01;
-    let maxRadius = 0.35;
-    const minGapRadius = 0.1;
-    const maxGapRadius = 0.4;
+    let maxRadius = 0.5;
+    const minGapRadius = 0.05;
+    const maxGapRadius = 0.3;
 
     for (let i = 0; i < 4; i++) {
 
@@ -178,6 +174,7 @@ export default class Sketch extends Core {
   addPointsForCamera() {
     const geometry = new THREE.BoxGeometry(10, 10, 10);
     this.points = [
+      { x: 0, y: 0, z: 0 },
       { x: -40.31063211935775, y: 0, z: -7.5299241136265564 },
       { x: -0.431651851596488, y: 0, z: 36.735493437942885 },
       { x: 38.360254480861435, y: 0, z: -4.134071872299652 },
@@ -186,18 +183,21 @@ export default class Sketch extends Core {
       { x: 29.317626022399224, y: 0, z: -36.55709687455183 }
     ]
 
-    for (let i = 0; i < 6; i++) {
-      // const control = new TransformControls(this.camera, this.renderer.domElement);
-      const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
+    for (let i = 0; i < 7; i++) {
+      const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xebe1e1, transparent: false });
       const mesh = new THREE.Mesh(geometry, material);
 
       mesh.position.x = this.points[i].x;
       mesh.position.y = this.points[i].y;
       mesh.position.z = this.points[i].z;
-      // mesh
 
-      // control.attach(mesh);
+      mesh.callback = () => {
+        this.cameraAnimation(mesh.position)
+      };
+
       this.scene.add(mesh);
+      // const control = new TransformControls(this.camera, this.renderer.domElement);
+      // control.attach(mesh);
       // this.scene.add(control);
 
       // control.addEventListener('dragging-changed', () => {

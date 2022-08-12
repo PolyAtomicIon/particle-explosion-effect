@@ -1,6 +1,5 @@
 import * as THREE from "three";
 import CameraControls from "camera-controls";
-const createInputEvents = require("simple-input-events");
 
 export default class Core {
   constructor(options) {
@@ -10,6 +9,14 @@ export default class Core {
 
     this.clock = new THREE.Clock();
     this.raycaster = new THREE.Raycaster();
+    this.mouse = {
+      x: 0,
+      y: 0
+    };
+    this.touch = {
+      x: 0,
+      y: 0
+    };
     this.pointer = new THREE.Vector2();
 
     this.container = options.dom;
@@ -33,7 +40,6 @@ export default class Core {
     this.renderer.toneMapping = THREE.ReinhardToneMapping;
 
     this.container.appendChild(this.renderer.domElement);
-    this.event = createInputEvents(this.renderer.domElement);
 
     this.camera = new THREE.PerspectiveCamera(
       45,
@@ -53,11 +59,15 @@ export default class Core {
     this.controls = new CameraControls(this.camera, this.renderer.domElement);
     this.controls.setTarget(0, 0, 0, true);
     const degreeInRad = THREE.MathUtils.degToRad(25);
-    this.controls.minPolarAngle = degreeInRad;
-    this.controls.maxPolarAngle = degreeInRad;
-    this.controls.minAzimuthAngle = degreeInRad;
-    this.controls.maxAzimuthAngle = degreeInRad;
+    // this.controls.minPolarAngle = degreeInRad;
+    // this.controls.maxPolarAngle = degreeInRad;
+    // this.controls.minAzimuthAngle = degreeInRad;
+    // this.controls.maxAzimuthAngle = degreeInRad;
     this.controls.rotatePolarTo(degreeInRad, true);
+    this.controls.draggingDampingFactor = 0.1;
+    this.controls.azimuthRotateSpeed = 0.15;
+    this.controls.polarRotateSpeed = 0.5;
+    
     this.updateControls();
 
     this.time = 0;
@@ -67,6 +77,89 @@ export default class Core {
 
     const axesHelper = new THREE.AxesHelper(50);
     this.scene.add(axesHelper);
+
+    window.addEventListener(
+      'touchmove',
+      this.TouchMoveManager.bind(this),
+      false
+    );
+    window.addEventListener(
+      'touchstart',
+      this.TouchStartManager.bind(this),
+      false
+    );
+    window.addEventListener('touchend', this.TouchEndManager.bind(this), false);
+    window.addEventListener('click', this.ClickManager.bind(this), false);
+  }
+
+  ClickManager(event) {
+    event.preventDefault();
+
+    this.mouse.x =
+      (event.offsetX / this.renderer.domElement.clientWidth) * 2 - 1;
+    this.mouse.y =
+      -(event.offsetY / this.renderer.domElement.clientHeight) * 2 + 1;
+
+    this.RaycastHandler();
+  }
+
+  TouchMoveManager(event) {
+    event.preventDefault();
+  }
+
+  TouchStartManager(event) {
+    const touch = event.changedTouches[0];
+    if (touch.clientX && touch.clientY) {
+      this.touch = {
+        x: touch.clientX,
+        y: touch.clientY
+      };
+    }
+  }
+
+  TouchEndManager(event) {
+    const touch = event.changedTouches[0];
+
+    if (
+      !touch ||
+      !this.touch ||
+      event.target.tagName === 'A' ||
+      event.target.tagName === 'BUTTON'
+    )
+      return;
+
+    const diff = {
+      x: Math.abs(this.touch.x - touch.clientX),
+      y: Math.abs(this.touch.y - touch.clientY)
+    };
+
+    // if user drags
+    if (diff.x > 0.2 || diff.y > 0.2) return;
+
+    this.mouse.x =
+      (touch.clientX / this.renderer.domElement.clientWidth) * 2 - 1;
+    this.mouse.y =
+      -(touch.clientY / this.renderer.domElement.clientHeight) * 2 + 1;
+
+    this.RaycastHandler();
+  }
+
+  RaycastHandler() {
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+
+    const intersects = this.raycaster.intersectObjects(
+      this.scene.children,
+      true
+    );
+    console.log('🐞: Core -> ClickManager -> intersects', intersects);
+    // console.log(intersects[0].point)
+
+    for (let i = 0; i < intersects.length; i++) {
+      if (intersects[i].object.callback) {
+        intersects[i].object.callback();
+        return;
+      }
+    }
 
   }
 
