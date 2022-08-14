@@ -244,7 +244,7 @@ vec3 getOffset(vec3 p){
 	float twistScale=cnoise(pos)*.5+5.;
 	// vec3 tempPos=rotation3dY(time*(.1+twistScale)+length(pos.xz))*p;
 	
-	vec3 offset=fbm_vec3(pos,3.7,.5);
+	vec3 offset=fbm_vec3(pos,3.,.5);
 	
 	float lastTime=transitionTime-.3;
 	float delta=smoothstep(0.,transitionTime-lastTime,time-lastTime);

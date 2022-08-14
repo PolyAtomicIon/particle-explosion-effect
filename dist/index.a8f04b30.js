@@ -517,276 +517,224 @@ function hmrAcceptRun(bundle, id) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 var _three = require("three");
-var _orbitControlsJs = require("three/examples/jsm/controls/OrbitControls.js");
-// import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-// import { EXRLoader } from "three/examples/jsm/loaders/EXRLoader.js";
-// import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
-var _fragmentGlsl = require("./shader/fragment.glsl");
-var _fragmentGlslDefault = parcelHelpers.interopDefault(_fragmentGlsl);
-var _vertexParticlesGlsl = require("./shader/vertexParticles.glsl");
-var _vertexParticlesGlslDefault = parcelHelpers.interopDefault(_vertexParticlesGlsl);
+var _transformControlsJs = require("three/examples/jsm/controls/TransformControls.js");
 var _lilGui = require("lil-gui");
 var _lilGuiDefault = parcelHelpers.interopDefault(_lilGui);
+var _core = require("./core");
+var _coreDefault = parcelHelpers.interopDefault(_core);
+var _particleCloud = require("./particleCloud");
+var _particleCloudDefault = parcelHelpers.interopDefault(_particleCloud);
+var _effectComposerJs = require("three/examples/jsm/postprocessing/EffectComposer.js");
+var _renderPassJs = require("three/examples/jsm/postprocessing/RenderPass.js");
+var _unrealBloomPassJs = require("three/examples/jsm/postprocessing/UnrealBloomPass.js");
 var _gsap = require("gsap");
 var _gsapDefault = parcelHelpers.interopDefault(_gsap);
-// import scene from "../scene.json";
-// import colorTiles from "../color-tiles.png";
-var _particleTexturePng = require("../particle-texture.png");
-var _particleTexturePngDefault = parcelHelpers.interopDefault(_particleTexturePng);
-const random = require("canvas-sketch-util/random");
-const createInputEvents = require("simple-input-events");
-function lerp(a, b, t) {
-    return a * (1 - t) + b * t;
-}
-class Sketch {
+class Sketch extends _coreDefault.default {
     constructor(options){
-        this.scene = new _three.Scene();
-        this.container = options.dom;
-        this.width = this.container.offsetWidth || this.container.innerWidth;
-        this.height = this.container.offsetHeight || this.container.innerHeight;
-        console.log(this.height, this.width);
-        this.renderer = new _three.WebGLRenderer({
-            transparent: true,
-            alpha: true
-        });
-        // this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        this.renderer.setSize(this.width, this.height);
-        // this.renderer.setClearColor(0x000000, 1);
-        this.renderer.physicallyCorrectLights = true;
-        this.renderer.outputEncoding = _three.sRGBEncoding;
-        this.event = createInputEvents(this.renderer.domElement);
-        this.renderer.autoClear = false;
-        this.container.appendChild(this.renderer.domElement);
-        this.camera = new _three.PerspectiveCamera(85, window.innerWidth / window.innerHeight, 0.0001, 10000);
-        // var frustumSize = 10;
-        // var aspect = window.innerWidth / window.innerHeight;
-        // this.camera = new THREE.OrthographicCamera( frustumSize * aspect / - 2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / - 2, -1000, 1000 );
-        this.camera.position.set(0, 12.5, 2);
-        this.camera.aspect = this.width / this.height;
-        this.controls = new _orbitControlsJs.OrbitControls(this.camera, this.renderer.domElement);
-        this.time = 0;
-        this.isBoomAnimationActive = true;
-        // setTimeout(() => {
-        //   console.log('dsfsdfsd');
-        //   this.isBoomAnimationActive = false;
-        // }, 1000);
-        this.raycaster = new _three.Raycaster();
-        this.pointer = new _three.Vector2();
-        this.glow = new _three.WebGLRenderTarget(this.width, this.height, {});
-        this.transitionTime = -5;
-        this.isPlaying = true;
+        super(options);
+        this.materials = [];
+        this.settings();
+        this.particleCloud = new _particleCloudDefault.default();
         this.addObjects();
+        this.addPointsForCamera();
+        this.setPostProcessing();
         this.resize();
         this.render();
         this.setupResize();
-        this.settings();
-        this.raycasterEvent();
-        this.clock = new _three.Clock();
     }
-    raycasterEvent() {
-        this.ball = new _three.Mesh(new _three.SphereBufferGeometry(10, 32, 32), new _three.MeshBasicMaterial({
-            color: 0
-        }));
-        this.scene.add(this.ball);
-        let testmesh = new _three.Mesh(new _three.PlaneBufferGeometry(1000, 1000), new _three.MeshBasicMaterial({
-            transparent: true
-        }));
-        testmesh.rotation.x = -Math.PI / 2;
-        testmesh.visible = false;
-        this.scene.add(testmesh);
-        this.event.on("move", ({ position , event , inside , dragging  })=>{
-            // mousemove / touchmove
-            // console.log(position); // [ x, y ]
-            // console.log(event); // original mouse/touch event
-            // console.log(inside); // true if the mouse/touch is inside the element
-            // console.log(dragging); // true if the pointer was down/dragging
-            this.pointer.x = position[0] / window.innerWidth * 2 - 1;
-            this.pointer.y = -(position[1] / window.innerHeight) * 2 + 1;
-            this.raycaster.setFromCamera(this.pointer, this.camera);
-            const intersects = this.raycaster.intersectObjects([
-                testmesh
-            ]);
-            // console.log(intersects[0]);
-            if (intersects[0]) {
-                let p = intersects[0].point;
-                this.ball.position.copy(p);
-            }
-        });
+    setPostProcessing() {
+        const renderScene = new _renderPassJs.RenderPass(this.scene, this.camera);
+        this.bloomPass = new _unrealBloomPassJs.UnrealBloomPass(new _three.Vector2(this.width, this.height), 1.5, 0.4, 0.85);
+        this.bloomPass.threshold = this.settings.bloomThreshold;
+        this.bloomPass.strength = this.settings.bloomStrength;
+        this.bloomPass.radius = this.settings.bloomRadius;
+        this.composer = new _effectComposerJs.EffectComposer(this.renderer);
+        this.composer.addPass(renderScene);
+        this.composer.addPass(this.bloomPass);
+    }
+    async cameraAnimation(position = {
+        x: 0,
+        y: 0,
+        z: 0
+    }) {
+        if (!this.particleCloud.isMorphingEnabled) {
+            this.settings.morph = true;
+            this.gui.morph = true;
+            this.morph();
+        }
+        console.log(this.controls._target);
+        const pos = this.controls._target;
+        const degreeInRad = _three.MathUtils.degToRad(90);
+        this.controls.moveTo(position.x, position.y, position.z, true), await Promise.all([
+            this.controls.moveTo(position.x, position.y, position.z, true),
+            this.controls.dollyTo(15, true), 
+        ]);
+        await Promise.all([
+            this.controls.setLookAt(pos.x, pos.y, pos.z, 0, 0, 0, true),
+            this.controls.rotatePolarTo(degreeInRad, true),
+            this.controls.dollyTo(80, true)
+        ]);
+        // this.controls.minPolarAngle = degreeInRad;
+        // this.controls.maxPolarAngle = degreeInRad;
+        // }
+        // else {
+        //   this.settings.morph = false;
+        //   this.gui.morph = false;
+        //   this.morph();
+        //   this.controls.moveTo(
+        //     0,
+        //     0,
+        //     0,
+        //     true
+        //   );
+        //   const degreeInRad = THREE.MathUtils.degToRad(25);
+        //   // this.controls.minPolarAngle = degreeInRad;
+        //   // this.controls.maxPolarAngle = degreeInRad;
+        //   this.controls.rotatePolarTo(
+        //     degreeInRad,
+        //     true
+        //   );
+        //   this.controls.dollyTo(150, true)
+        // }
+        this.updateControls();
     }
     settings() {
         this.settings = {
             morph: false,
-            progress: 0,
-            glow: false,
-            fdAlpha: 0,
-            superScale: 1
+            exposure: 1,
+            bloomStrength: 1.1,
+            bloomThreshold: 0,
+            bloomRadius: 0
         };
         this.gui = new _lilGuiDefault.default();
-        this.gui.add(this.settings, "morph").onChange(()=>{
-            this.transitionTime = this.time + 0.3;
+        this.gui.add(this.settings, "morph").onChange(()=>this.morph()
+        );
+        this.gui.add(this.settings, 'exposure', 0.1, 2).onChange((value)=>{
+            this.changeExposure(value);
         });
-    // this.gui.add(this.settings, "fdAlpha", 0, 1, 0.01);
-    // this.gui.add(this.settings, "superScale", 0, 3, 0.01);
-    // this.gui.add(this.settings, "glow");
-    }
-    fixHeightProblem() {
-        // The trick to viewport units on mobile browsers
-        const vh = window.innerHeight * 0.01;
-        document.documentElement.style.setProperty('--vh', `${vh}px`);
-    }
-    setupResize() {
-        window.addEventListener("resize", this.resize.bind(this), false);
+        this.gui.add(this.settings, 'bloomThreshold', 0, 1).onChange((value)=>{
+            this.bloomPass.threshold = Number(value);
+        });
+        this.gui.add(this.settings, 'bloomStrength', 0, 3).onChange((value)=>{
+            this.changeBloomStrength(value);
+        });
+        this.gui.add(this.settings, 'bloomRadius', 0, 1).step(0.01).onChange((value)=>{
+            this.bloomPass.radius = Number(value);
+        });
     }
     resize() {
-        console.log("hi");
-        this.fixHeightProblem();
-        this.width = this.container.offsetWidth || this.container.innerWidth;
-        this.height = this.container.offsetHeight || this.container.innerHeight;
-        this.renderer.setSize(this.width, this.height);
-        this.renderer.render(this.scene, this.camera);
-        this.camera.aspect = this.width / this.height;
-        this.camera.updateProjectionMatrix();
-        for(let i = 0; i < this.materials.length; i++)this.materials[i].uniforms.u_resolution.value = {
+        this.particleCloud.resize({
             x: this.width,
             y: this.height
-        };
-        this.renderer.render(this.scene, this.camera);
+        });
+    }
+    morph() {
+        if (!this.particleCloud.isMorphingEnabled) {
+            // this.changeExposure(0.45);
+            this.changeExposure(0.7);
+            this.changeBloomStrength(0.5);
+        } else {
+            this.changeExposure(1);
+            this.changeBloomStrength(1.1);
+        }
+        this.particleCloud.morph(this.time);
+    }
+    changeExposure(value) {
+        _gsapDefault.default.to(this.renderer, {
+            toneMappingExposure: Math.pow(value, 4),
+            duration: 0.5
+        });
+    }
+    changeBloomStrength(value) {
+        _gsapDefault.default.to(this.bloomPass, {
+            strength: Number(value),
+            duration: 0.5
+        });
     }
     addObjects() {
-        this.uniforms = {
-            uTexture: {
-                value: new _three.TextureLoader().load(_particleTexturePngDefault.default)
-            },
-            time: {
-                value: 0
-            },
-            boomAnimation: {
-                value: this.isBoomAnimationActive
-            },
-            resolution: {
-                value: new _three.Vector4()
-            }
-        };
-        this.materials = [];
-        let createParticleCloud = (count, minRadius, maxRadius, animationTime, boomAnimationSpeed, isTwist = false, deltaY = 0)=>{
-            let material = new _three.ShaderMaterial({
-                extensions: {
-                    derivatives: "#extension GL_OES_standard_derivatives : enable"
-                },
-                side: _three.DoubleSide,
-                uniforms: {
-                    ...this.uniforms,
-                    u_resolution: {
-                        value: {
-                            x: this.width,
-                            y: this.height
-                        }
-                    },
-                    animationTime: {
-                        value: animationTime
-                    },
-                    transitionTime: {
-                        value: 0
-                    },
-                    boomAnimationSpeed: {
-                        value: boomAnimationSpeed
-                    },
-                    twist: {
-                        value: 0
-                    },
-                    twist2: {
-                        value: isTwist
-                    },
-                    deltaY: {
-                        value: deltaY
-                    }
-                },
-                // wireframe: true,
-                transparent: true,
-                vertexShader: _vertexParticlesGlslDefault.default,
-                fragmentShader: _fragmentGlslDefault.default,
-                blending: _three.AdditiveBlending,
-                // depthWrite: false,
-                depthTest: false
-            });
-            this.materials.push(material);
-            let pos = new Float32Array(count * 3);
-            let particlegeo = new _three.PlaneBufferGeometry(1, 1);
-            let geo = new _three.InstancedBufferGeometry();
-            geo.instanceCount = count;
-            geo.setAttribute("position", particlegeo.getAttribute('position'));
-            geo.index = particlegeo.index;
-            for(let i = 0; i < count; i++){
-                let theta = Math.random() * 2 * Math.PI;
-                let r = lerp(minRadius, maxRadius, Math.random());
-                let x = r * Math.sin(theta);
-                let y = (Math.random() - 0.5) * 0.05;
-                let z = r * Math.cos(theta);
-                pos.set([
-                    x,
-                    y,
-                    z
-                ], i * 3);
-            }
-            geo.setAttribute("pos", new _three.InstancedBufferAttribute(pos, 3, false));
-            geo.setAttribute("uv", new _three.BufferAttribute(pos, 2));
-            this.mesh = new _three.Mesh(geo, material);
-            this.scene.add(this.mesh);
-        // console.log(this.mesh);
-        };
-        let startInnerDuration = 0.9;
-        let startOuterDuration = 0.95;
-        let durationGap = 0.05;
-        let innerSpeed = 1.8;
-        let outerSpeed = 3.3;
-        const count1 = 4500;
-        const minRadius1 = 0.01;
-        const maxInnerRadius = 0.3;
-        const maxOuterRadius = 0.02;
-        const radiusGap = 0.004;
-        createParticleCloud(count1 * 3, minRadius1, maxInnerRadius, startInnerDuration, innerSpeed, true, 4);
-        for(let i1 = 0; i1 < 4; i1++){
-            let currentRadiusDelta = i1 * radiusGap;
-            createParticleCloud(count1, minRadius1 + currentRadiusDelta, maxOuterRadius + currentRadiusDelta, startOuterDuration, outerSpeed, true, 0);
+        const count = 4000;
+        const duration = 0.9;
+        const speed = 1.8;
+        this.particleCloud.createShaderMaterial({
+            x: this.width,
+            y: this.height
+        }, duration, speed, 0);
+        let minRadius = 0.01;
+        let maxRadius = 0.5;
+        const minGapRadius = 0.05;
+        const maxGapRadius = 0.3;
+        for(let i = 0; i < 4; i++){
+            let mesh = this.particleCloud.createParticleCloud(count, minRadius, maxRadius);
+            this.scene.add(mesh);
+            minRadius = maxRadius + minGapRadius;
+            maxRadius = maxRadius + maxGapRadius;
         }
     }
-    stop() {
-        this.isPlaying = false;
-    }
-    play() {
-        if (!this.isPlaying) {
-            this.isPlaying = true;
-            this.render();
+    addPointsForCamera() {
+        const geometry = new _three.BoxGeometry(10, 10, 10);
+        this.points = [
+            {
+                x: 0,
+                y: 0,
+                z: 0
+            },
+            {
+                x: -40.31063211935775,
+                y: 0,
+                z: -7.5299241136265564
+            },
+            {
+                x: -0.431651851596488,
+                y: 0,
+                z: 36.735493437942885
+            },
+            {
+                x: 38.360254480861435,
+                y: 0,
+                z: -4.134071872299652
+            },
+            {
+                x: 4.151668326034631,
+                y: 0,
+                z: -44.44804748500181
+            },
+            {
+                x: -29.568267868006334,
+                y: 0,
+                z: 26.032432790631393
+            },
+            {
+                x: 29.317626022399224,
+                y: 0,
+                z: -36.55709687455183
+            }
+        ];
+        for(let i = 0; i < 7; i++){
+            const material = new _three.MeshBasicMaterial({
+                color: Math.random() * 15458785,
+                transparent: false
+            });
+            const mesh = new _three.Mesh(geometry, material);
+            mesh.position.x = this.points[i].x;
+            mesh.position.y = this.points[i].y;
+            mesh.position.z = this.points[i].z;
+            mesh.callback = ()=>{
+                this.cameraAnimation(mesh.position);
+            };
+            this.scene.add(mesh);
+        // const control = new TransformControls(this.camera, this.renderer.domElement);
+        // control.attach(mesh);
+        // this.scene.add(control);
+        // control.addEventListener('dragging-changed', () => {
+        //   console.log(mesh.position);
+        // });
         }
     }
     render() {
-        if (!this.isPlaying) return;
-        this.time += 0.01;
-        this.renderer.clear();
-        // this.renderer.setClearColor(0x000000, 1);
-        // this.material.uniforms.glow.value = 1;
-        // this.material.uniforms.superOpacity.value = this.settings.fdAlpha;
-        // this.material.uniforms.superScale.value = this.settings.superScale;
-        // this.renderer.setRenderTarget(this.glow);
-        // this.renderer.setRenderTarget(null);
-        // this.renderer.autoClear = false;
-        this.renderer.clearDepth();
-        // this.material.uniforms.glow.value = 0;
-        // this.renderer.setClearColor(0x000000, 0);
-        // this.time = this.time%1;
-        // this.material.uniforms.fade.value = this.settings.progress;
-        // this.material.uniforms.glow.value = this.settings.glow
-        for(let i = 0; i < this.materials.length; i++){
-            this.materials[i].uniforms.time.value = this.time;
-            this.materials[i].uniforms.transitionTime.value = this.transitionTime;
-            if (this.settings.morph) this.materials[i].uniforms.twist.value = 2.5;
-            else if (this.materials[i].uniforms.twist.value != 0) this.materials[i].uniforms.twist.value = -1;
-        }
-        // this.material.uniforms.boomAnimation.value = this.isBoomAnimationActive;
-        // this.material.uniforms.fdAlpha.value = this.settings.fdAlpha;
-        // this.material.uniforms.superOpacity.value = 1;
+        this.renderManager();
+        this.composer.render();
+        this.particleCloud.render(this.time);
         requestAnimationFrame(this.render.bind(this));
-        this.renderer.render(this.scene, this.camera);
     }
 }
 exports.default = Sketch;
@@ -795,7 +743,7 @@ const sketch = new Sketch({
 });
 sketch.fixHeightProblem();
 
-},{"three":"ktPTu","three/examples/jsm/controls/OrbitControls.js":"7mqRv","./shader/fragment.glsl":"501kY","./shader/vertexParticles.glsl":"3ctUY","lil-gui":"fkEfG","gsap":"fPSuC","../particle-texture.png":"3NsHC","canvas-sketch-util/random":"7mQah","simple-input-events":"2xQXu","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"ktPTu":[function(require,module,exports) {
+},{"three":"ktPTu","lil-gui":"fkEfG","gsap":"fPSuC","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","three/examples/jsm/controls/TransformControls.js":"7wM6b","./core":"l2iy1","./particleCloud":"7AZIm","three/examples/jsm/postprocessing/EffectComposer.js":"e5jie","three/examples/jsm/postprocessing/RenderPass.js":"hXnUO","three/examples/jsm/postprocessing/UnrealBloomPass.js":"3iDYE"}],"ktPTu":[function(require,module,exports) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "ACESFilmicToneMapping", ()=>ACESFilmicToneMapping
@@ -30790,701 +30738,6 @@ exports.export = function(dest, destName, get) {
     });
 };
 
-},{}],"7mqRv":[function(require,module,exports) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-parcelHelpers.export(exports, "OrbitControls", ()=>OrbitControls
-);
-parcelHelpers.export(exports, "MapControls", ()=>MapControls
-);
-var _three = require("three");
-// This set of controls performs orbiting, dollying (zooming), and panning.
-// Unlike TrackballControls, it maintains the "up" direction object.up (+Y by default).
-//
-//    Orbit - left mouse / touch: one-finger move
-//    Zoom - middle mouse, or mousewheel / touch: two-finger spread or squish
-//    Pan - right mouse, or left mouse + ctrl/meta/shiftKey, or arrow keys / touch: two-finger move
-const _changeEvent = {
-    type: 'change'
-};
-const _startEvent = {
-    type: 'start'
-};
-const _endEvent = {
-    type: 'end'
-};
-class OrbitControls extends _three.EventDispatcher {
-    constructor(object, domElement1){
-        super();
-        if (domElement1 === undefined) console.warn('THREE.OrbitControls: The second parameter "domElement" is now mandatory.');
-        if (domElement1 === document) console.error('THREE.OrbitControls: "document" should not be used as the target "domElement". Please use "renderer.domElement" instead.');
-        this.object = object;
-        this.domElement = domElement1;
-        this.domElement.style.touchAction = 'none'; // disable touch scroll
-        // Set to false to disable this control
-        this.enabled = true;
-        // "target" sets the location of focus, where the object orbits around
-        this.target = new _three.Vector3();
-        // How far you can dolly in and out ( PerspectiveCamera only )
-        this.minDistance = 0;
-        this.maxDistance = Infinity;
-        // How far you can zoom in and out ( OrthographicCamera only )
-        this.minZoom = 0;
-        this.maxZoom = Infinity;
-        // How far you can orbit vertically, upper and lower limits.
-        // Range is 0 to Math.PI radians.
-        this.minPolarAngle = 0; // radians
-        this.maxPolarAngle = Math.PI; // radians
-        // How far you can orbit horizontally, upper and lower limits.
-        // If set, the interval [ min, max ] must be a sub-interval of [ - 2 PI, 2 PI ], with ( max - min < 2 PI )
-        this.minAzimuthAngle = -Infinity; // radians
-        this.maxAzimuthAngle = Infinity; // radians
-        // Set to true to enable damping (inertia)
-        // If damping is enabled, you must call controls.update() in your animation loop
-        this.enableDamping = false;
-        this.dampingFactor = 0.05;
-        // This option actually enables dollying in and out; left as "zoom" for backwards compatibility.
-        // Set to false to disable zooming
-        this.enableZoom = true;
-        this.zoomSpeed = 1;
-        // Set to false to disable rotating
-        this.enableRotate = true;
-        this.rotateSpeed = 1;
-        // Set to false to disable panning
-        this.enablePan = true;
-        this.panSpeed = 1;
-        this.screenSpacePanning = true; // if false, pan orthogonal to world-space direction camera.up
-        this.keyPanSpeed = 7; // pixels moved per arrow key push
-        // Set to true to automatically rotate around the target
-        // If auto-rotate is enabled, you must call controls.update() in your animation loop
-        this.autoRotate = false;
-        this.autoRotateSpeed = 2; // 30 seconds per orbit when fps is 60
-        // The four arrow keys
-        this.keys = {
-            LEFT: 'ArrowLeft',
-            UP: 'ArrowUp',
-            RIGHT: 'ArrowRight',
-            BOTTOM: 'ArrowDown'
-        };
-        // Mouse buttons
-        this.mouseButtons = {
-            LEFT: _three.MOUSE.ROTATE,
-            MIDDLE: _three.MOUSE.DOLLY,
-            RIGHT: _three.MOUSE.PAN
-        };
-        // Touch fingers
-        this.touches = {
-            ONE: _three.TOUCH.ROTATE,
-            TWO: _three.TOUCH.DOLLY_PAN
-        };
-        // for reset
-        this.target0 = this.target.clone();
-        this.position0 = this.object.position.clone();
-        this.zoom0 = this.object.zoom;
-        // the target DOM element for key events
-        this._domElementKeyEvents = null;
-        //
-        // public methods
-        //
-        this.getPolarAngle = function() {
-            return spherical.phi;
-        };
-        this.getAzimuthalAngle = function() {
-            return spherical.theta;
-        };
-        this.getDistance = function() {
-            return this.object.position.distanceTo(this.target);
-        };
-        this.listenToKeyEvents = function(domElement) {
-            domElement.addEventListener('keydown', onKeyDown);
-            this._domElementKeyEvents = domElement;
-        };
-        this.saveState = function() {
-            scope.target0.copy(scope.target);
-            scope.position0.copy(scope.object.position);
-            scope.zoom0 = scope.object.zoom;
-        };
-        this.reset = function() {
-            scope.target.copy(scope.target0);
-            scope.object.position.copy(scope.position0);
-            scope.object.zoom = scope.zoom0;
-            scope.object.updateProjectionMatrix();
-            scope.dispatchEvent(_changeEvent);
-            scope.update();
-            state = STATE.NONE;
-        };
-        // this method is exposed, but perhaps it would be better if we can make it private...
-        this.update = function() {
-            const offset = new _three.Vector3();
-            // so camera.up is the orbit axis
-            const quat = new _three.Quaternion().setFromUnitVectors(object.up, new _three.Vector3(0, 1, 0));
-            const quatInverse = quat.clone().invert();
-            const lastPosition = new _three.Vector3();
-            const lastQuaternion = new _three.Quaternion();
-            const twoPI = 2 * Math.PI;
-            return function update() {
-                const position = scope.object.position;
-                offset.copy(position).sub(scope.target);
-                // rotate offset to "y-axis-is-up" space
-                offset.applyQuaternion(quat);
-                // angle from z-axis around y-axis
-                spherical.setFromVector3(offset);
-                if (scope.autoRotate && state === STATE.NONE) rotateLeft(getAutoRotationAngle());
-                if (scope.enableDamping) {
-                    spherical.theta += sphericalDelta.theta * scope.dampingFactor;
-                    spherical.phi += sphericalDelta.phi * scope.dampingFactor;
-                } else {
-                    spherical.theta += sphericalDelta.theta;
-                    spherical.phi += sphericalDelta.phi;
-                }
-                // restrict theta to be between desired limits
-                let min = scope.minAzimuthAngle;
-                let max = scope.maxAzimuthAngle;
-                if (isFinite(min) && isFinite(max)) {
-                    if (min < -Math.PI) min += twoPI;
-                    else if (min > Math.PI) min -= twoPI;
-                    if (max < -Math.PI) max += twoPI;
-                    else if (max > Math.PI) max -= twoPI;
-                    if (min <= max) spherical.theta = Math.max(min, Math.min(max, spherical.theta));
-                    else spherical.theta = spherical.theta > (min + max) / 2 ? Math.max(min, spherical.theta) : Math.min(max, spherical.theta);
-                }
-                // restrict phi to be between desired limits
-                spherical.phi = Math.max(scope.minPolarAngle, Math.min(scope.maxPolarAngle, spherical.phi));
-                spherical.makeSafe();
-                spherical.radius *= scale;
-                // restrict radius to be between desired limits
-                spherical.radius = Math.max(scope.minDistance, Math.min(scope.maxDistance, spherical.radius));
-                // move target to panned location
-                if (scope.enableDamping === true) scope.target.addScaledVector(panOffset, scope.dampingFactor);
-                else scope.target.add(panOffset);
-                offset.setFromSpherical(spherical);
-                // rotate offset back to "camera-up-vector-is-up" space
-                offset.applyQuaternion(quatInverse);
-                position.copy(scope.target).add(offset);
-                scope.object.lookAt(scope.target);
-                if (scope.enableDamping === true) {
-                    sphericalDelta.theta *= 1 - scope.dampingFactor;
-                    sphericalDelta.phi *= 1 - scope.dampingFactor;
-                    panOffset.multiplyScalar(1 - scope.dampingFactor);
-                } else {
-                    sphericalDelta.set(0, 0, 0);
-                    panOffset.set(0, 0, 0);
-                }
-                scale = 1;
-                // update condition is:
-                // min(camera displacement, camera rotation in radians)^2 > EPS
-                // using small-angle approximation cos(x/2) = 1 - x^2 / 8
-                if (zoomChanged || lastPosition.distanceToSquared(scope.object.position) > EPS || 8 * (1 - lastQuaternion.dot(scope.object.quaternion)) > EPS) {
-                    scope.dispatchEvent(_changeEvent);
-                    lastPosition.copy(scope.object.position);
-                    lastQuaternion.copy(scope.object.quaternion);
-                    zoomChanged = false;
-                    return true;
-                }
-                return false;
-            };
-        }();
-        this.dispose = function() {
-            scope.domElement.removeEventListener('contextmenu', onContextMenu);
-            scope.domElement.removeEventListener('pointerdown', onPointerDown);
-            scope.domElement.removeEventListener('pointercancel', onPointerCancel);
-            scope.domElement.removeEventListener('wheel', onMouseWheel);
-            scope.domElement.removeEventListener('pointermove', onPointerMove);
-            scope.domElement.removeEventListener('pointerup', onPointerUp);
-            if (scope._domElementKeyEvents !== null) scope._domElementKeyEvents.removeEventListener('keydown', onKeyDown);
-        //scope.dispatchEvent( { type: 'dispose' } ); // should this be added here?
-        };
-        //
-        // internals
-        //
-        const scope = this;
-        const STATE = {
-            NONE: -1,
-            ROTATE: 0,
-            DOLLY: 1,
-            PAN: 2,
-            TOUCH_ROTATE: 3,
-            TOUCH_PAN: 4,
-            TOUCH_DOLLY_PAN: 5,
-            TOUCH_DOLLY_ROTATE: 6
-        };
-        let state = STATE.NONE;
-        const EPS = 0.000001;
-        // current position in spherical coordinates
-        const spherical = new _three.Spherical();
-        const sphericalDelta = new _three.Spherical();
-        let scale = 1;
-        const panOffset = new _three.Vector3();
-        let zoomChanged = false;
-        const rotateStart = new _three.Vector2();
-        const rotateEnd = new _three.Vector2();
-        const rotateDelta = new _three.Vector2();
-        const panStart = new _three.Vector2();
-        const panEnd = new _three.Vector2();
-        const panDelta = new _three.Vector2();
-        const dollyStart = new _three.Vector2();
-        const dollyEnd = new _three.Vector2();
-        const dollyDelta = new _three.Vector2();
-        const pointers = [];
-        const pointerPositions = {};
-        function getAutoRotationAngle() {
-            return 2 * Math.PI / 60 / 60 * scope.autoRotateSpeed;
-        }
-        function getZoomScale() {
-            return Math.pow(0.95, scope.zoomSpeed);
-        }
-        function rotateLeft(angle) {
-            sphericalDelta.theta -= angle;
-        }
-        function rotateUp(angle) {
-            sphericalDelta.phi -= angle;
-        }
-        const panLeft = function() {
-            const v = new _three.Vector3();
-            return function panLeft(distance, objectMatrix) {
-                v.setFromMatrixColumn(objectMatrix, 0); // get X column of objectMatrix
-                v.multiplyScalar(-distance);
-                panOffset.add(v);
-            };
-        }();
-        const panUp = function() {
-            const v = new _three.Vector3();
-            return function panUp(distance, objectMatrix) {
-                if (scope.screenSpacePanning === true) v.setFromMatrixColumn(objectMatrix, 1);
-                else {
-                    v.setFromMatrixColumn(objectMatrix, 0);
-                    v.crossVectors(scope.object.up, v);
-                }
-                v.multiplyScalar(distance);
-                panOffset.add(v);
-            };
-        }();
-        // deltaX and deltaY are in pixels; right and down are positive
-        const pan = function() {
-            const offset = new _three.Vector3();
-            return function pan(deltaX, deltaY) {
-                const element = scope.domElement;
-                if (scope.object.isPerspectiveCamera) {
-                    // perspective
-                    const position = scope.object.position;
-                    offset.copy(position).sub(scope.target);
-                    let targetDistance = offset.length();
-                    // half of the fov is center to top of screen
-                    targetDistance *= Math.tan(scope.object.fov / 2 * Math.PI / 180);
-                    // we use only clientHeight here so aspect ratio does not distort speed
-                    panLeft(2 * deltaX * targetDistance / element.clientHeight, scope.object.matrix);
-                    panUp(2 * deltaY * targetDistance / element.clientHeight, scope.object.matrix);
-                } else if (scope.object.isOrthographicCamera) {
-                    // orthographic
-                    panLeft(deltaX * (scope.object.right - scope.object.left) / scope.object.zoom / element.clientWidth, scope.object.matrix);
-                    panUp(deltaY * (scope.object.top - scope.object.bottom) / scope.object.zoom / element.clientHeight, scope.object.matrix);
-                } else {
-                    // camera neither orthographic nor perspective
-                    console.warn('WARNING: OrbitControls.js encountered an unknown camera type - pan disabled.');
-                    scope.enablePan = false;
-                }
-            };
-        }();
-        function dollyOut(dollyScale) {
-            if (scope.object.isPerspectiveCamera) scale /= dollyScale;
-            else if (scope.object.isOrthographicCamera) {
-                scope.object.zoom = Math.max(scope.minZoom, Math.min(scope.maxZoom, scope.object.zoom * dollyScale));
-                scope.object.updateProjectionMatrix();
-                zoomChanged = true;
-            } else {
-                console.warn('WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.');
-                scope.enableZoom = false;
-            }
-        }
-        function dollyIn(dollyScale) {
-            if (scope.object.isPerspectiveCamera) scale *= dollyScale;
-            else if (scope.object.isOrthographicCamera) {
-                scope.object.zoom = Math.max(scope.minZoom, Math.min(scope.maxZoom, scope.object.zoom / dollyScale));
-                scope.object.updateProjectionMatrix();
-                zoomChanged = true;
-            } else {
-                console.warn('WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.');
-                scope.enableZoom = false;
-            }
-        }
-        //
-        // event callbacks - update the object state
-        //
-        function handleMouseDownRotate(event) {
-            rotateStart.set(event.clientX, event.clientY);
-        }
-        function handleMouseDownDolly(event) {
-            dollyStart.set(event.clientX, event.clientY);
-        }
-        function handleMouseDownPan(event) {
-            panStart.set(event.clientX, event.clientY);
-        }
-        function handleMouseMoveRotate(event) {
-            rotateEnd.set(event.clientX, event.clientY);
-            rotateDelta.subVectors(rotateEnd, rotateStart).multiplyScalar(scope.rotateSpeed);
-            const element = scope.domElement;
-            rotateLeft(2 * Math.PI * rotateDelta.x / element.clientHeight); // yes, height
-            rotateUp(2 * Math.PI * rotateDelta.y / element.clientHeight);
-            rotateStart.copy(rotateEnd);
-            scope.update();
-        }
-        function handleMouseMoveDolly(event) {
-            dollyEnd.set(event.clientX, event.clientY);
-            dollyDelta.subVectors(dollyEnd, dollyStart);
-            if (dollyDelta.y > 0) dollyOut(getZoomScale());
-            else if (dollyDelta.y < 0) dollyIn(getZoomScale());
-            dollyStart.copy(dollyEnd);
-            scope.update();
-        }
-        function handleMouseMovePan(event) {
-            panEnd.set(event.clientX, event.clientY);
-            panDelta.subVectors(panEnd, panStart).multiplyScalar(scope.panSpeed);
-            pan(panDelta.x, panDelta.y);
-            panStart.copy(panEnd);
-            scope.update();
-        }
-        function handleMouseWheel(event) {
-            if (event.deltaY < 0) dollyIn(getZoomScale());
-            else if (event.deltaY > 0) dollyOut(getZoomScale());
-            scope.update();
-        }
-        function handleKeyDown(event) {
-            let needsUpdate = false;
-            switch(event.code){
-                case scope.keys.UP:
-                    pan(0, scope.keyPanSpeed);
-                    needsUpdate = true;
-                    break;
-                case scope.keys.BOTTOM:
-                    pan(0, -scope.keyPanSpeed);
-                    needsUpdate = true;
-                    break;
-                case scope.keys.LEFT:
-                    pan(scope.keyPanSpeed, 0);
-                    needsUpdate = true;
-                    break;
-                case scope.keys.RIGHT:
-                    pan(-scope.keyPanSpeed, 0);
-                    needsUpdate = true;
-                    break;
-            }
-            if (needsUpdate) {
-                // prevent the browser from scrolling on cursor keys
-                event.preventDefault();
-                scope.update();
-            }
-        }
-        function handleTouchStartRotate() {
-            if (pointers.length === 1) rotateStart.set(pointers[0].pageX, pointers[0].pageY);
-            else {
-                const x = 0.5 * (pointers[0].pageX + pointers[1].pageX);
-                const y = 0.5 * (pointers[0].pageY + pointers[1].pageY);
-                rotateStart.set(x, y);
-            }
-        }
-        function handleTouchStartPan() {
-            if (pointers.length === 1) panStart.set(pointers[0].pageX, pointers[0].pageY);
-            else {
-                const x = 0.5 * (pointers[0].pageX + pointers[1].pageX);
-                const y = 0.5 * (pointers[0].pageY + pointers[1].pageY);
-                panStart.set(x, y);
-            }
-        }
-        function handleTouchStartDolly() {
-            const dx = pointers[0].pageX - pointers[1].pageX;
-            const dy = pointers[0].pageY - pointers[1].pageY;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            dollyStart.set(0, distance);
-        }
-        function handleTouchStartDollyPan() {
-            if (scope.enableZoom) handleTouchStartDolly();
-            if (scope.enablePan) handleTouchStartPan();
-        }
-        function handleTouchStartDollyRotate() {
-            if (scope.enableZoom) handleTouchStartDolly();
-            if (scope.enableRotate) handleTouchStartRotate();
-        }
-        function handleTouchMoveRotate(event) {
-            if (pointers.length == 1) rotateEnd.set(event.pageX, event.pageY);
-            else {
-                const position = getSecondPointerPosition(event);
-                const x = 0.5 * (event.pageX + position.x);
-                const y = 0.5 * (event.pageY + position.y);
-                rotateEnd.set(x, y);
-            }
-            rotateDelta.subVectors(rotateEnd, rotateStart).multiplyScalar(scope.rotateSpeed);
-            const element = scope.domElement;
-            rotateLeft(2 * Math.PI * rotateDelta.x / element.clientHeight); // yes, height
-            rotateUp(2 * Math.PI * rotateDelta.y / element.clientHeight);
-            rotateStart.copy(rotateEnd);
-        }
-        function handleTouchMovePan(event) {
-            if (pointers.length === 1) panEnd.set(event.pageX, event.pageY);
-            else {
-                const position = getSecondPointerPosition(event);
-                const x = 0.5 * (event.pageX + position.x);
-                const y = 0.5 * (event.pageY + position.y);
-                panEnd.set(x, y);
-            }
-            panDelta.subVectors(panEnd, panStart).multiplyScalar(scope.panSpeed);
-            pan(panDelta.x, panDelta.y);
-            panStart.copy(panEnd);
-        }
-        function handleTouchMoveDolly(event) {
-            const position = getSecondPointerPosition(event);
-            const dx = event.pageX - position.x;
-            const dy = event.pageY - position.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            dollyEnd.set(0, distance);
-            dollyDelta.set(0, Math.pow(dollyEnd.y / dollyStart.y, scope.zoomSpeed));
-            dollyOut(dollyDelta.y);
-            dollyStart.copy(dollyEnd);
-        }
-        function handleTouchMoveDollyPan(event) {
-            if (scope.enableZoom) handleTouchMoveDolly(event);
-            if (scope.enablePan) handleTouchMovePan(event);
-        }
-        function handleTouchMoveDollyRotate(event) {
-            if (scope.enableZoom) handleTouchMoveDolly(event);
-            if (scope.enableRotate) handleTouchMoveRotate(event);
-        }
-        //
-        // event handlers - FSM: listen for events and reset state
-        //
-        function onPointerDown(event) {
-            if (scope.enabled === false) return;
-            if (pointers.length === 0) {
-                scope.domElement.setPointerCapture(event.pointerId);
-                scope.domElement.addEventListener('pointermove', onPointerMove);
-                scope.domElement.addEventListener('pointerup', onPointerUp);
-            }
-            //
-            addPointer(event);
-            if (event.pointerType === 'touch') onTouchStart(event);
-            else onMouseDown(event);
-        }
-        function onPointerMove(event) {
-            if (scope.enabled === false) return;
-            if (event.pointerType === 'touch') onTouchMove(event);
-            else onMouseMove(event);
-        }
-        function onPointerUp(event) {
-            removePointer(event);
-            if (pointers.length === 0) {
-                scope.domElement.releasePointerCapture(event.pointerId);
-                scope.domElement.removeEventListener('pointermove', onPointerMove);
-                scope.domElement.removeEventListener('pointerup', onPointerUp);
-            }
-            scope.dispatchEvent(_endEvent);
-            state = STATE.NONE;
-        }
-        function onPointerCancel(event) {
-            removePointer(event);
-        }
-        function onMouseDown(event) {
-            let mouseAction;
-            switch(event.button){
-                case 0:
-                    mouseAction = scope.mouseButtons.LEFT;
-                    break;
-                case 1:
-                    mouseAction = scope.mouseButtons.MIDDLE;
-                    break;
-                case 2:
-                    mouseAction = scope.mouseButtons.RIGHT;
-                    break;
-                default:
-                    mouseAction = -1;
-            }
-            switch(mouseAction){
-                case _three.MOUSE.DOLLY:
-                    if (scope.enableZoom === false) return;
-                    handleMouseDownDolly(event);
-                    state = STATE.DOLLY;
-                    break;
-                case _three.MOUSE.ROTATE:
-                    if (event.ctrlKey || event.metaKey || event.shiftKey) {
-                        if (scope.enablePan === false) return;
-                        handleMouseDownPan(event);
-                        state = STATE.PAN;
-                    } else {
-                        if (scope.enableRotate === false) return;
-                        handleMouseDownRotate(event);
-                        state = STATE.ROTATE;
-                    }
-                    break;
-                case _three.MOUSE.PAN:
-                    if (event.ctrlKey || event.metaKey || event.shiftKey) {
-                        if (scope.enableRotate === false) return;
-                        handleMouseDownRotate(event);
-                        state = STATE.ROTATE;
-                    } else {
-                        if (scope.enablePan === false) return;
-                        handleMouseDownPan(event);
-                        state = STATE.PAN;
-                    }
-                    break;
-                default:
-                    state = STATE.NONE;
-            }
-            if (state !== STATE.NONE) scope.dispatchEvent(_startEvent);
-        }
-        function onMouseMove(event) {
-            if (scope.enabled === false) return;
-            switch(state){
-                case STATE.ROTATE:
-                    if (scope.enableRotate === false) return;
-                    handleMouseMoveRotate(event);
-                    break;
-                case STATE.DOLLY:
-                    if (scope.enableZoom === false) return;
-                    handleMouseMoveDolly(event);
-                    break;
-                case STATE.PAN:
-                    if (scope.enablePan === false) return;
-                    handleMouseMovePan(event);
-                    break;
-            }
-        }
-        function onMouseWheel(event) {
-            if (scope.enabled === false || scope.enableZoom === false || state !== STATE.NONE) return;
-            event.preventDefault();
-            scope.dispatchEvent(_startEvent);
-            handleMouseWheel(event);
-            scope.dispatchEvent(_endEvent);
-        }
-        function onKeyDown(event) {
-            if (scope.enabled === false || scope.enablePan === false) return;
-            handleKeyDown(event);
-        }
-        function onTouchStart(event) {
-            trackPointer(event);
-            switch(pointers.length){
-                case 1:
-                    switch(scope.touches.ONE){
-                        case _three.TOUCH.ROTATE:
-                            if (scope.enableRotate === false) return;
-                            handleTouchStartRotate();
-                            state = STATE.TOUCH_ROTATE;
-                            break;
-                        case _three.TOUCH.PAN:
-                            if (scope.enablePan === false) return;
-                            handleTouchStartPan();
-                            state = STATE.TOUCH_PAN;
-                            break;
-                        default:
-                            state = STATE.NONE;
-                    }
-                    break;
-                case 2:
-                    switch(scope.touches.TWO){
-                        case _three.TOUCH.DOLLY_PAN:
-                            if (scope.enableZoom === false && scope.enablePan === false) return;
-                            handleTouchStartDollyPan();
-                            state = STATE.TOUCH_DOLLY_PAN;
-                            break;
-                        case _three.TOUCH.DOLLY_ROTATE:
-                            if (scope.enableZoom === false && scope.enableRotate === false) return;
-                            handleTouchStartDollyRotate();
-                            state = STATE.TOUCH_DOLLY_ROTATE;
-                            break;
-                        default:
-                            state = STATE.NONE;
-                    }
-                    break;
-                default:
-                    state = STATE.NONE;
-            }
-            if (state !== STATE.NONE) scope.dispatchEvent(_startEvent);
-        }
-        function onTouchMove(event) {
-            trackPointer(event);
-            switch(state){
-                case STATE.TOUCH_ROTATE:
-                    if (scope.enableRotate === false) return;
-                    handleTouchMoveRotate(event);
-                    scope.update();
-                    break;
-                case STATE.TOUCH_PAN:
-                    if (scope.enablePan === false) return;
-                    handleTouchMovePan(event);
-                    scope.update();
-                    break;
-                case STATE.TOUCH_DOLLY_PAN:
-                    if (scope.enableZoom === false && scope.enablePan === false) return;
-                    handleTouchMoveDollyPan(event);
-                    scope.update();
-                    break;
-                case STATE.TOUCH_DOLLY_ROTATE:
-                    if (scope.enableZoom === false && scope.enableRotate === false) return;
-                    handleTouchMoveDollyRotate(event);
-                    scope.update();
-                    break;
-                default:
-                    state = STATE.NONE;
-            }
-        }
-        function onContextMenu(event) {
-            if (scope.enabled === false) return;
-            event.preventDefault();
-        }
-        function addPointer(event) {
-            pointers.push(event);
-        }
-        function removePointer(event) {
-            delete pointerPositions[event.pointerId];
-            for(let i = 0; i < pointers.length; i++)if (pointers[i].pointerId == event.pointerId) {
-                pointers.splice(i, 1);
-                return;
-            }
-        }
-        function trackPointer(event) {
-            let position = pointerPositions[event.pointerId];
-            if (position === undefined) {
-                position = new _three.Vector2();
-                pointerPositions[event.pointerId] = position;
-            }
-            position.set(event.pageX, event.pageY);
-        }
-        function getSecondPointerPosition(event) {
-            const pointer = event.pointerId === pointers[0].pointerId ? pointers[1] : pointers[0];
-            return pointerPositions[pointer.pointerId];
-        }
-        //
-        scope.domElement.addEventListener('contextmenu', onContextMenu);
-        scope.domElement.addEventListener('pointerdown', onPointerDown);
-        scope.domElement.addEventListener('pointercancel', onPointerCancel);
-        scope.domElement.addEventListener('wheel', onMouseWheel, {
-            passive: false
-        });
-        // force an update at start
-        this.update();
-    }
-}
-// This set of controls performs orbiting, dollying (zooming), and panning.
-// Unlike TrackballControls, it maintains the "up" direction object.up (+Y by default).
-// This is very similar to OrbitControls, another set of touch behavior
-//
-//    Orbit - right mouse, or left mouse + ctrl/meta/shiftKey / touch: two-finger rotate
-//    Zoom - middle mouse, or mousewheel / touch: two-finger spread or squish
-//    Pan - left mouse, or arrow keys / touch: one-finger move
-class MapControls extends OrbitControls {
-    constructor(object, domElement){
-        super(object, domElement);
-        this.screenSpacePanning = false; // pan orthogonal to world-space direction camera.up
-        this.mouseButtons.LEFT = _three.MOUSE.PAN;
-        this.mouseButtons.RIGHT = _three.MOUSE.ROTATE;
-        this.touches.ONE = _three.TOUCH.PAN;
-        this.touches.TWO = _three.TOUCH.DOLLY_ROTATE;
-    }
-}
-
-},{"three":"ktPTu","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"501kY":[function(require,module,exports) {
-module.exports = "precision highp float;\n#define GLSLIFY 1\nvarying vec2 vUv;\nuniform sampler2D uTexture;\nuniform vec2 u_resolution;\n\nvoid main(){\n\t// if(globalAlpha < .001 || opacity < .001 || vScale < .001 || fogDepth < .001) discard;\n\t// vec2 st = vec2(-1.0) + 2.0 * gl_PointCoord.xy;\n\t// float d = 1.0 - distance(st, vec2(0.));\n\t\n\t// // d = mix(d, smoothstep(0., .25, d), depth);\n\t// if(!glow) d = smoothstep(0., .25, d);\n\t// else d = mix(d, smoothstep(0., .25, d), depth);\n\t// float depthOpacity = mix(.25, 1.0, depth);\n\t\n\t// if(d < .001) discard;\n\t\n\t// float op = d * opacity * globalAlpha * depthOpacity;\n\t// // op = mix(op, smoothstep(.0, .4, op), fdAlpha);\n\t\n\t// vec3 finalColor = mix(vColor, mix(vColor, vec3(1.), .35), vRing);\n\t// finalColor = mix(finalColor, vec3(0.), 1.0-fogDepth);\n\t\n\t// finalColor = mix(finalColor, applyLevels(finalColor), vLevels);\n\t\n\t// gl_FragColor = vec4(finalColor, op * fogDepth*superOpacity);\n\t\n\t// vec2 st=gl_FragCoord.xy/u_resolution.xy;\n\t\n\t// vec3 color1=vec3(0.7647, 0.4941, 0.0588);\n\t// vec3 color2=vec3(0.0, 0.6157, 0.1843);\n\t\n\t// float mixValue=distance(st,vec2(0,1));\n\t\n\t// vec3 color=mix(color1,color2,mixValue);\n\t// vec4 ttt=texture2D(uTexture,vUv);\n\t\n\t// gl_FragColor=vec4(color,ttt.r);\n\n\tvec2 pos_ndc = 2.0 * gl_FragCoord.xy / u_resolution.xy - 1.0;\n    float dist = length(pos_ndc);\n\n    vec4 white = vec4(0.1373, 0.0902, 0.7725, 1.0);\n    vec4 red = vec4(0.1137, 0.4118, 0.1647, 1.0);\n    vec4 blue = vec4(1.0, 0.9686, 0.0, 1.0);\n    vec4 green = vec4(0.0, 1.0, 0.0, 1.0);\n    float step1 = 0.0;\n    float step2 = 0.5;\n    float step3 = 0.78;\n    float step4 = 1.0;\n\n    vec4 color = mix(white, red, smoothstep(step1, step2, dist));\n    color = mix(color, blue, smoothstep(step2, step3, dist));\n    color = mix(color, green, smoothstep(step3, step4, dist));\n\n\tvec4 ttt=texture2D(uTexture,vUv);\n\tgl_FragColor=vec4(vec3(color),ttt.r);\n\t// gl_FragColor=vec4(vec3(1.0),ttt.r);\n    // gl_FragColor = color;\n}";
-
-},{}],"3ctUY":[function(require,module,exports) {
-module.exports = "precision highp float;\n#define GLSLIFY 1\n\nuniform float time;\nuniform bool boomAnimation;\nuniform float twist;\nuniform bool twist2;\nuniform float animationTime;\nuniform float transitionTime;\nuniform float deltaY;\nuniform float boomAnimationSpeed;\n// uniform float animationTime=1.8;\n// uniform float boomAnimationSpeed=1.3;\nvarying vec3 vPosition;\nvarying vec2 vUv;\nattribute vec3 pos;\n\nconst vec3 color1=vec3(0.,.14,.64);\nconst vec3 color2=vec3(.39,.52,.97);\nconst vec3 color3=vec3(.51,.17,.75);\nconst float E=2.7182818284590452;\nconst float PI=3.14159265359;\n\n//\n// GLSL textureless classic 3D noise \"cnoise\",\n// with an RSL-style periodic variant \"pnoise\".\n// Author:  Stefan Gustavson (stefan.gustavson@liu.se)\n// Version: 2011-10-11\n//\n// Many thanks to Ian McEwan of Ashima Arts for the\n// ideas for permutation and gradient selection.\n//\n// Copyright (c) 2011 Stefan Gustavson. All rights reserved.\n// Distributed under the MIT license. See LICENSE file.\n// https://github.com/stegu/webgl-noise\n//\n\nvec3 mod289(vec3 x)\n{\n\treturn x-floor(x*(1./289.))*289.;\n}\n\nvec4 mod289(vec4 x)\n{\n\treturn x-floor(x*(1./289.))*289.;\n}\n\nvec4 permute(vec4 x)\n{\n\treturn mod289(((x*34.)+10.)*x);\n}\n\nvec4 taylorInvSqrt(vec4 r)\n{\n\treturn 1.79284291400159-.85373472095314*r;\n}\n\nvec3 fade(vec3 t){\n\treturn t*t*t*(t*(t*6.-15.)+10.);\n}\n\n// Classic Perlin noise\nfloat cnoise(vec3 P)\n{\n\tvec3 Pi0=floor(P);// Integer part for indexing\n\tvec3 Pi1=Pi0+vec3(1.);// Integer part + 1\n\tPi0=mod289(Pi0);\n\tPi1=mod289(Pi1);\n\tvec3 Pf0=fract(P);// Fractional part for interpolation\n\tvec3 Pf1=Pf0-vec3(1.);// Fractional part - 1.0\n\tvec4 ix=vec4(Pi0.x,Pi1.x,Pi0.x,Pi1.x);\n\tvec4 iy=vec4(Pi0.yy,Pi1.yy);\n\tvec4 iz0=Pi0.zzzz;\n\tvec4 iz1=Pi1.zzzz;\n\t\n\tvec4 ixy=permute(permute(ix)+iy);\n\tvec4 ixy0=permute(ixy+iz0);\n\tvec4 ixy1=permute(ixy+iz1);\n\t\n\tvec4 gx0=ixy0*(1./7.);\n\tvec4 gy0=fract(floor(gx0)*(1./7.))-.5;\n\tgx0=fract(gx0);\n\tvec4 gz0=vec4(.5)-abs(gx0)-abs(gy0);\n\tvec4 sz0=step(gz0,vec4(0.));\n\tgx0-=sz0*(step(0.,gx0)-.5);\n\tgy0-=sz0*(step(0.,gy0)-.5);\n\t\n\tvec4 gx1=ixy1*(1./7.);\n\tvec4 gy1=fract(floor(gx1)*(1./7.))-.5;\n\tgx1=fract(gx1);\n\tvec4 gz1=vec4(.5)-abs(gx1)-abs(gy1);\n\tvec4 sz1=step(gz1,vec4(0.));\n\tgx1-=sz1*(step(0.,gx1)-.5);\n\tgy1-=sz1*(step(0.,gy1)-.5);\n\t\n\tvec3 g000=vec3(gx0.x,gy0.x,gz0.x);\n\tvec3 g100=vec3(gx0.y,gy0.y,gz0.y);\n\tvec3 g010=vec3(gx0.z,gy0.z,gz0.z);\n\tvec3 g110=vec3(gx0.w,gy0.w,gz0.w);\n\tvec3 g001=vec3(gx1.x,gy1.x,gz1.x);\n\tvec3 g101=vec3(gx1.y,gy1.y,gz1.y);\n\tvec3 g011=vec3(gx1.z,gy1.z,gz1.z);\n\tvec3 g111=vec3(gx1.w,gy1.w,gz1.w);\n\t\n\tvec4 norm0=taylorInvSqrt(vec4(dot(g000,g000),dot(g010,g010),dot(g100,g100),dot(g110,g110)));\n\tg000*=norm0.x;\n\tg010*=norm0.y;\n\tg100*=norm0.z;\n\tg110*=norm0.w;\n\tvec4 norm1=taylorInvSqrt(vec4(dot(g001,g001),dot(g011,g011),dot(g101,g101),dot(g111,g111)));\n\tg001*=norm1.x;\n\tg011*=norm1.y;\n\tg101*=norm1.z;\n\tg111*=norm1.w;\n\t\n\tfloat n000=dot(g000,Pf0);\n\tfloat n100=dot(g100,vec3(Pf1.x,Pf0.yz));\n\tfloat n010=dot(g010,vec3(Pf0.x,Pf1.y,Pf0.z));\n\tfloat n110=dot(g110,vec3(Pf1.xy,Pf0.z));\n\tfloat n001=dot(g001,vec3(Pf0.xy,Pf1.z));\n\tfloat n101=dot(g101,vec3(Pf1.x,Pf0.y,Pf1.z));\n\tfloat n011=dot(g011,vec3(Pf0.x,Pf1.yz));\n\tfloat n111=dot(g111,Pf1);\n\t\n\tvec3 fade_xyz=fade(Pf0);\n\tvec4 n_z=mix(vec4(n000,n100,n010,n110),vec4(n001,n101,n011,n111),fade_xyz.z);\n\tvec2 n_yz=mix(n_z.xy,n_z.zw,fade_xyz.y);\n\tfloat n_xyz=mix(n_yz.x,n_yz.y,fade_xyz.x);\n\treturn 2.2*n_xyz;\n}\n\n// Classic Perlin noise, periodic variant\nfloat pnoise(vec3 P,vec3 rep)\n{\n\tvec3 Pi0=mod(floor(P),rep);// Integer part, modulo period\n\tvec3 Pi1=mod(Pi0+vec3(1.),rep);// Integer part + 1, mod period\n\tPi0=mod289(Pi0);\n\tPi1=mod289(Pi1);\n\tvec3 Pf0=fract(P);// Fractional part for interpolation\n\tvec3 Pf1=Pf0-vec3(1.);// Fractional part - 1.0\n\tvec4 ix=vec4(Pi0.x,Pi1.x,Pi0.x,Pi1.x);\n\tvec4 iy=vec4(Pi0.yy,Pi1.yy);\n\tvec4 iz0=Pi0.zzzz;\n\tvec4 iz1=Pi1.zzzz;\n\t\n\tvec4 ixy=permute(permute(ix)+iy);\n\tvec4 ixy0=permute(ixy+iz0);\n\tvec4 ixy1=permute(ixy+iz1);\n\t\n\tvec4 gx0=ixy0*(1./7.);\n\tvec4 gy0=fract(floor(gx0)*(1./7.))-.5;\n\tgx0=fract(gx0);\n\tvec4 gz0=vec4(.5)-abs(gx0)-abs(gy0);\n\tvec4 sz0=step(gz0,vec4(0.));\n\tgx0-=sz0*(step(0.,gx0)-.5);\n\tgy0-=sz0*(step(0.,gy0)-.5);\n\t\n\tvec4 gx1=ixy1*(1./7.);\n\tvec4 gy1=fract(floor(gx1)*(1./7.))-.5;\n\tgx1=fract(gx1);\n\tvec4 gz1=vec4(.5)-abs(gx1)-abs(gy1);\n\tvec4 sz1=step(gz1,vec4(0.));\n\tgx1-=sz1*(step(0.,gx1)-.5);\n\tgy1-=sz1*(step(0.,gy1)-.5);\n\t\n\tvec3 g000=vec3(gx0.x,gy0.x,gz0.x);\n\tvec3 g100=vec3(gx0.y,gy0.y,gz0.y);\n\tvec3 g010=vec3(gx0.z,gy0.z,gz0.z);\n\tvec3 g110=vec3(gx0.w,gy0.w,gz0.w);\n\tvec3 g001=vec3(gx1.x,gy1.x,gz1.x);\n\tvec3 g101=vec3(gx1.y,gy1.y,gz1.y);\n\tvec3 g011=vec3(gx1.z,gy1.z,gz1.z);\n\tvec3 g111=vec3(gx1.w,gy1.w,gz1.w);\n\t\n\tvec4 norm0=taylorInvSqrt(vec4(dot(g000,g000),dot(g010,g010),dot(g100,g100),dot(g110,g110)));\n\tg000*=norm0.x;\n\tg010*=norm0.y;\n\tg100*=norm0.z;\n\tg110*=norm0.w;\n\tvec4 norm1=taylorInvSqrt(vec4(dot(g001,g001),dot(g011,g011),dot(g101,g101),dot(g111,g111)));\n\tg001*=norm1.x;\n\tg011*=norm1.y;\n\tg101*=norm1.z;\n\tg111*=norm1.w;\n\t\n\tfloat n000=dot(g000,Pf0);\n\tfloat n100=dot(g100,vec3(Pf1.x,Pf0.yz));\n\tfloat n010=dot(g010,vec3(Pf0.x,Pf1.y,Pf0.z));\n\tfloat n110=dot(g110,vec3(Pf1.xy,Pf0.z));\n\tfloat n001=dot(g001,vec3(Pf0.xy,Pf1.z));\n\tfloat n101=dot(g101,vec3(Pf1.x,Pf0.y,Pf1.z));\n\tfloat n011=dot(g011,vec3(Pf0.x,Pf1.yz));\n\tfloat n111=dot(g111,Pf1);\n\t\n\tvec3 fade_xyz=fade(Pf0);\n\tvec4 n_z=mix(vec4(n000,n100,n010,n110),vec4(n001,n101,n011,n111),fade_xyz.z);\n\tvec2 n_yz=mix(n_z.xy,n_z.zw,fade_xyz.y);\n\tfloat n_xyz=mix(n_yz.x,n_yz.y,fade_xyz.x);\n\treturn 2.2*n_xyz;\n}\n\nfloat rand(vec2 co){\n\treturn fract(sin(dot(co,vec2(12.9898,78.233)))*43758.5453);\n}\n\nfloat range(float x,float limit){\n\tif(x>0.){\n\t\treturn limit;\n\t}\n\telse{\n\t\treturn-limit;\n\t}\n}\n\nfloat normalDistribution(float x){\n\tconst float u=.34;\n\tconst float sigma=.1;\n\t\n\treturn(1./(sigma*pow(2.*PI,.5)))*pow(E,-pow((x-u),2.)/(2.*pow(sigma,2.)));\n}\n\nmat3 rotation3dY(float angle){\n\tfloat s=sin(angle);\n\tfloat c=cos(angle);\n\t\n\tfloat scaler=pow(E*E*1.,smoothstep(0.,animationTime,time)*boomAnimationSpeed);\n\t// float scaler=1.;\n\t\n\treturn mat3(\n\t\tc*scaler,0.,-s*scaler,\n\t\t0.,1.,0.,\n\t\ts*scaler,0.,c*scaler\n\t);\n}\n\nvec3 fbm_vec3(vec3 p,float frequency,float offset){\n\treturn vec3(\n\t\tcnoise((p+vec3(offset))*frequency),\n\t\tcnoise((p+vec3(offset+20.))*frequency),\n\t\tcnoise((p+vec3(offset-30.))*frequency)\n\t);\n}\n\nvec3 getOffset(vec3 p){\n\tfloat twistScale=cnoise(pos)*.5+5.;\n\t// vec3 tempPos=rotation3dY(time*(.1+twistScale)+length(pos.xz))*p;\n\t\n\tvec3 offset=fbm_vec3(pos,3.7,.5);\n\t\n\tfloat lastTime=transitionTime-.3;\n\tfloat delta=smoothstep(0.,transitionTime-lastTime,time-lastTime);\n\t\n\tif(twist2){\n\t\tif(twist>0.){\n\t\t\tfloat lastTime=transitionTime-.3;\n\t\t\tfloat delta=smoothstep(0.,transitionTime-lastTime,time-lastTime);\n\t\t\treturn offset*delta*twistScale;\n\t\t}\n\t\telse if(twist<0.){\n\t\t\tfloat lastTime=transitionTime-.3;\n\t\t\tfloat delta=smoothstep(transitionTime-lastTime,0.,time-lastTime);\n\t\t\treturn offset*delta*twistScale;\n\t\t}\n\t}\n\telse{\n\t\treturn offset;\n\t}\n}\n\nvoid main(){\n\t\n\tvUv=position.xy+vec2(.5);\n\tvec3 finalPos=pos+position*.1;\n\t\n\tfloat particleSize=cnoise(pos*5.)*.5+2.5;\n\t\n\tvec3 worldPos=rotation3dY((time)*.01*(.1+particleSize*.5))*pos;\n\t\n\tvec3 offset0=getOffset(worldPos);\n\tvec3 offset=fbm_vec3(worldPos+offset0,.3,.0);\n\t\n\tworldPos+=offset;\n\tworldPos+=offset0;\n\t\n\tvec3 particlePosition=(modelMatrix*vec4(worldPos,1.)).xyz;\n\t\n\tvec4 viewPos=viewMatrix*vec4(particlePosition,1.);\n\t\n\tviewPos.xyz+=position*(.02+.05*particleSize);\n\tif(twist2&&twist>0.){\n\t\tfloat lastTime=transitionTime-.3;\n\t\tfloat delta=smoothstep(0.,transitionTime-lastTime,time-lastTime);\n\t\tviewPos.y+=-delta*deltaY;\n\t}\n\telse if(twist2&&twist<0.){\n\t\tfloat lastTime=transitionTime-.3;\n\t\tfloat delta=smoothstep(transitionTime-lastTime,0.,time-lastTime);\n\t\tviewPos.y+=-delta*deltaY;\n\t}\n\t\n\tgl_Position=projectionMatrix*viewPos;\n\t\n}";
-
 },{}],"fkEfG":[function(require,module,exports) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
@@ -36853,7 +36106,3723 @@ _gsapCoreJs._forEachName("x,y,z,top,right,bottom,left,width,height,fontSize,padd
 });
 _gsapCoreJs.gsap.registerPlugin(CSSPlugin);
 
-},{"./gsap-core.js":"05eeC","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"3NsHC":[function(require,module,exports) {
+},{"./gsap-core.js":"05eeC","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"7wM6b":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "TransformControls", ()=>TransformControls
+);
+parcelHelpers.export(exports, "TransformControlsGizmo", ()=>TransformControlsGizmo
+);
+parcelHelpers.export(exports, "TransformControlsPlane", ()=>TransformControlsPlane
+);
+var _three = require("three");
+const _raycaster = new _three.Raycaster();
+const _tempVector = new _three.Vector3();
+const _tempVector2 = new _three.Vector3();
+const _tempQuaternion = new _three.Quaternion();
+const _unit = {
+    X: new _three.Vector3(1, 0, 0),
+    Y: new _three.Vector3(0, 1, 0),
+    Z: new _three.Vector3(0, 0, 1)
+};
+const _changeEvent = {
+    type: 'change'
+};
+const _mouseDownEvent = {
+    type: 'mouseDown'
+};
+const _mouseUpEvent = {
+    type: 'mouseUp',
+    mode: null
+};
+const _objectChangeEvent = {
+    type: 'objectChange'
+};
+class TransformControls extends _three.Object3D {
+    constructor(camera, domElement){
+        super();
+        if (domElement === undefined) {
+            console.warn('THREE.TransformControls: The second parameter "domElement" is now mandatory.');
+            domElement = document;
+        }
+        this.visible = false;
+        this.domElement = domElement;
+        this.domElement.style.touchAction = 'none'; // disable touch scroll
+        const _gizmo = new TransformControlsGizmo();
+        this._gizmo = _gizmo;
+        this.add(_gizmo);
+        const _plane = new TransformControlsPlane();
+        this._plane = _plane;
+        this.add(_plane);
+        const scope = this;
+        // Defined getter, setter and store for a property
+        function defineProperty(propName, defaultValue) {
+            let propValue = defaultValue;
+            Object.defineProperty(scope, propName, {
+                get: function() {
+                    return propValue !== undefined ? propValue : defaultValue;
+                },
+                set: function(value) {
+                    if (propValue !== value) {
+                        propValue = value;
+                        _plane[propName] = value;
+                        _gizmo[propName] = value;
+                        scope.dispatchEvent({
+                            type: propName + '-changed',
+                            value: value
+                        });
+                        scope.dispatchEvent(_changeEvent);
+                    }
+                }
+            });
+            scope[propName] = defaultValue;
+            _plane[propName] = defaultValue;
+            _gizmo[propName] = defaultValue;
+        }
+        // Define properties with getters/setter
+        // Setting the defined property will automatically trigger change event
+        // Defined properties are passed down to gizmo and plane
+        defineProperty('camera', camera);
+        defineProperty('object', undefined);
+        defineProperty('enabled', true);
+        defineProperty('axis', null);
+        defineProperty('mode', 'translate');
+        defineProperty('translationSnap', null);
+        defineProperty('rotationSnap', null);
+        defineProperty('scaleSnap', null);
+        defineProperty('space', 'world');
+        defineProperty('size', 1);
+        defineProperty('dragging', false);
+        defineProperty('showX', true);
+        defineProperty('showY', true);
+        defineProperty('showZ', true);
+        // Reusable utility variables
+        const worldPosition = new _three.Vector3();
+        const worldPositionStart = new _three.Vector3();
+        const worldQuaternion = new _three.Quaternion();
+        const worldQuaternionStart = new _three.Quaternion();
+        const cameraPosition = new _three.Vector3();
+        const cameraQuaternion = new _three.Quaternion();
+        const pointStart = new _three.Vector3();
+        const pointEnd = new _three.Vector3();
+        const rotationAxis = new _three.Vector3();
+        const rotationAngle = 0;
+        const eye = new _three.Vector3();
+        // TODO: remove properties unused in plane and gizmo
+        defineProperty('worldPosition', worldPosition);
+        defineProperty('worldPositionStart', worldPositionStart);
+        defineProperty('worldQuaternion', worldQuaternion);
+        defineProperty('worldQuaternionStart', worldQuaternionStart);
+        defineProperty('cameraPosition', cameraPosition);
+        defineProperty('cameraQuaternion', cameraQuaternion);
+        defineProperty('pointStart', pointStart);
+        defineProperty('pointEnd', pointEnd);
+        defineProperty('rotationAxis', rotationAxis);
+        defineProperty('rotationAngle', rotationAngle);
+        defineProperty('eye', eye);
+        this._offset = new _three.Vector3();
+        this._startNorm = new _three.Vector3();
+        this._endNorm = new _three.Vector3();
+        this._cameraScale = new _three.Vector3();
+        this._parentPosition = new _three.Vector3();
+        this._parentQuaternion = new _three.Quaternion();
+        this._parentQuaternionInv = new _three.Quaternion();
+        this._parentScale = new _three.Vector3();
+        this._worldScaleStart = new _three.Vector3();
+        this._worldQuaternionInv = new _three.Quaternion();
+        this._worldScale = new _three.Vector3();
+        this._positionStart = new _three.Vector3();
+        this._quaternionStart = new _three.Quaternion();
+        this._scaleStart = new _three.Vector3();
+        this._getPointer = getPointer.bind(this);
+        this._onPointerDown = onPointerDown.bind(this);
+        this._onPointerHover = onPointerHover.bind(this);
+        this._onPointerMove = onPointerMove.bind(this);
+        this._onPointerUp = onPointerUp.bind(this);
+        this.domElement.addEventListener('pointerdown', this._onPointerDown);
+        this.domElement.addEventListener('pointermove', this._onPointerHover);
+        this.domElement.addEventListener('pointerup', this._onPointerUp);
+    }
+    // updateMatrixWorld  updates key transformation variables
+    updateMatrixWorld() {
+        if (this.object !== undefined) {
+            this.object.updateMatrixWorld();
+            if (this.object.parent === null) console.error('TransformControls: The attached 3D object must be a part of the scene graph.');
+            else this.object.parent.matrixWorld.decompose(this._parentPosition, this._parentQuaternion, this._parentScale);
+            this.object.matrixWorld.decompose(this.worldPosition, this.worldQuaternion, this._worldScale);
+            this._parentQuaternionInv.copy(this._parentQuaternion).invert();
+            this._worldQuaternionInv.copy(this.worldQuaternion).invert();
+        }
+        this.camera.updateMatrixWorld();
+        this.camera.matrixWorld.decompose(this.cameraPosition, this.cameraQuaternion, this._cameraScale);
+        this.eye.copy(this.cameraPosition).sub(this.worldPosition).normalize();
+        super.updateMatrixWorld(this);
+    }
+    pointerHover(pointer) {
+        if (this.object === undefined || this.dragging === true) return;
+        _raycaster.setFromCamera(pointer, this.camera);
+        const intersect = intersectObjectWithRay(this._gizmo.picker[this.mode], _raycaster);
+        if (intersect) this.axis = intersect.object.name;
+        else this.axis = null;
+    }
+    pointerDown(pointer) {
+        if (this.object === undefined || this.dragging === true || pointer.button !== 0) return;
+        if (this.axis !== null) {
+            _raycaster.setFromCamera(pointer, this.camera);
+            const planeIntersect = intersectObjectWithRay(this._plane, _raycaster, true);
+            if (planeIntersect) {
+                this.object.updateMatrixWorld();
+                this.object.parent.updateMatrixWorld();
+                this._positionStart.copy(this.object.position);
+                this._quaternionStart.copy(this.object.quaternion);
+                this._scaleStart.copy(this.object.scale);
+                this.object.matrixWorld.decompose(this.worldPositionStart, this.worldQuaternionStart, this._worldScaleStart);
+                this.pointStart.copy(planeIntersect.point).sub(this.worldPositionStart);
+            }
+            this.dragging = true;
+            _mouseDownEvent.mode = this.mode;
+            this.dispatchEvent(_mouseDownEvent);
+        }
+    }
+    pointerMove(pointer) {
+        const axis = this.axis;
+        const mode = this.mode;
+        const object = this.object;
+        let space = this.space;
+        if (mode === 'scale') space = 'local';
+        else if (axis === 'E' || axis === 'XYZE' || axis === 'XYZ') space = 'world';
+        if (object === undefined || axis === null || this.dragging === false || pointer.button !== -1) return;
+        _raycaster.setFromCamera(pointer, this.camera);
+        const planeIntersect = intersectObjectWithRay(this._plane, _raycaster, true);
+        if (!planeIntersect) return;
+        this.pointEnd.copy(planeIntersect.point).sub(this.worldPositionStart);
+        if (mode === 'translate') {
+            // Apply translate
+            this._offset.copy(this.pointEnd).sub(this.pointStart);
+            if (space === 'local' && axis !== 'XYZ') this._offset.applyQuaternion(this._worldQuaternionInv);
+            if (axis.indexOf('X') === -1) this._offset.x = 0;
+            if (axis.indexOf('Y') === -1) this._offset.y = 0;
+            if (axis.indexOf('Z') === -1) this._offset.z = 0;
+            if (space === 'local' && axis !== 'XYZ') this._offset.applyQuaternion(this._quaternionStart).divide(this._parentScale);
+            else this._offset.applyQuaternion(this._parentQuaternionInv).divide(this._parentScale);
+            object.position.copy(this._offset).add(this._positionStart);
+            // Apply translation snap
+            if (this.translationSnap) {
+                if (space === 'local') {
+                    object.position.applyQuaternion(_tempQuaternion.copy(this._quaternionStart).invert());
+                    if (axis.search('X') !== -1) object.position.x = Math.round(object.position.x / this.translationSnap) * this.translationSnap;
+                    if (axis.search('Y') !== -1) object.position.y = Math.round(object.position.y / this.translationSnap) * this.translationSnap;
+                    if (axis.search('Z') !== -1) object.position.z = Math.round(object.position.z / this.translationSnap) * this.translationSnap;
+                    object.position.applyQuaternion(this._quaternionStart);
+                }
+                if (space === 'world') {
+                    if (object.parent) object.position.add(_tempVector.setFromMatrixPosition(object.parent.matrixWorld));
+                    if (axis.search('X') !== -1) object.position.x = Math.round(object.position.x / this.translationSnap) * this.translationSnap;
+                    if (axis.search('Y') !== -1) object.position.y = Math.round(object.position.y / this.translationSnap) * this.translationSnap;
+                    if (axis.search('Z') !== -1) object.position.z = Math.round(object.position.z / this.translationSnap) * this.translationSnap;
+                    if (object.parent) object.position.sub(_tempVector.setFromMatrixPosition(object.parent.matrixWorld));
+                }
+            }
+        } else if (mode === 'scale') {
+            if (axis.search('XYZ') !== -1) {
+                let d = this.pointEnd.length() / this.pointStart.length();
+                if (this.pointEnd.dot(this.pointStart) < 0) d *= -1;
+                _tempVector2.set(d, d, d);
+            } else {
+                _tempVector.copy(this.pointStart);
+                _tempVector2.copy(this.pointEnd);
+                _tempVector.applyQuaternion(this._worldQuaternionInv);
+                _tempVector2.applyQuaternion(this._worldQuaternionInv);
+                _tempVector2.divide(_tempVector);
+                if (axis.search('X') === -1) _tempVector2.x = 1;
+                if (axis.search('Y') === -1) _tempVector2.y = 1;
+                if (axis.search('Z') === -1) _tempVector2.z = 1;
+            }
+            // Apply scale
+            object.scale.copy(this._scaleStart).multiply(_tempVector2);
+            if (this.scaleSnap) {
+                if (axis.search('X') !== -1) object.scale.x = Math.round(object.scale.x / this.scaleSnap) * this.scaleSnap || this.scaleSnap;
+                if (axis.search('Y') !== -1) object.scale.y = Math.round(object.scale.y / this.scaleSnap) * this.scaleSnap || this.scaleSnap;
+                if (axis.search('Z') !== -1) object.scale.z = Math.round(object.scale.z / this.scaleSnap) * this.scaleSnap || this.scaleSnap;
+            }
+        } else if (mode === 'rotate') {
+            this._offset.copy(this.pointEnd).sub(this.pointStart);
+            const ROTATION_SPEED = 20 / this.worldPosition.distanceTo(_tempVector.setFromMatrixPosition(this.camera.matrixWorld));
+            if (axis === 'E') {
+                this.rotationAxis.copy(this.eye);
+                this.rotationAngle = this.pointEnd.angleTo(this.pointStart);
+                this._startNorm.copy(this.pointStart).normalize();
+                this._endNorm.copy(this.pointEnd).normalize();
+                this.rotationAngle *= this._endNorm.cross(this._startNorm).dot(this.eye) < 0 ? 1 : -1;
+            } else if (axis === 'XYZE') {
+                this.rotationAxis.copy(this._offset).cross(this.eye).normalize();
+                this.rotationAngle = this._offset.dot(_tempVector.copy(this.rotationAxis).cross(this.eye)) * ROTATION_SPEED;
+            } else if (axis === 'X' || axis === 'Y' || axis === 'Z') {
+                this.rotationAxis.copy(_unit[axis]);
+                _tempVector.copy(_unit[axis]);
+                if (space === 'local') _tempVector.applyQuaternion(this.worldQuaternion);
+                this.rotationAngle = this._offset.dot(_tempVector.cross(this.eye).normalize()) * ROTATION_SPEED;
+            }
+            // Apply rotation snap
+            if (this.rotationSnap) this.rotationAngle = Math.round(this.rotationAngle / this.rotationSnap) * this.rotationSnap;
+            // Apply rotate
+            if (space === 'local' && axis !== 'E' && axis !== 'XYZE') {
+                object.quaternion.copy(this._quaternionStart);
+                object.quaternion.multiply(_tempQuaternion.setFromAxisAngle(this.rotationAxis, this.rotationAngle)).normalize();
+            } else {
+                this.rotationAxis.applyQuaternion(this._parentQuaternionInv);
+                object.quaternion.copy(_tempQuaternion.setFromAxisAngle(this.rotationAxis, this.rotationAngle));
+                object.quaternion.multiply(this._quaternionStart).normalize();
+            }
+        }
+        this.dispatchEvent(_changeEvent);
+        this.dispatchEvent(_objectChangeEvent);
+    }
+    pointerUp(pointer) {
+        if (pointer.button !== 0) return;
+        if (this.dragging && this.axis !== null) {
+            _mouseUpEvent.mode = this.mode;
+            this.dispatchEvent(_mouseUpEvent);
+        }
+        this.dragging = false;
+        this.axis = null;
+    }
+    dispose() {
+        this.domElement.removeEventListener('pointerdown', this._onPointerDown);
+        this.domElement.removeEventListener('pointermove', this._onPointerHover);
+        this.domElement.removeEventListener('pointermove', this._onPointerMove);
+        this.domElement.removeEventListener('pointerup', this._onPointerUp);
+        this.traverse(function(child) {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) child.material.dispose();
+        });
+    }
+    // Set current object
+    attach(object) {
+        this.object = object;
+        this.visible = true;
+        return this;
+    }
+    // Detatch from object
+    detach() {
+        this.object = undefined;
+        this.visible = false;
+        this.axis = null;
+        return this;
+    }
+    reset() {
+        if (!this.enabled) return;
+        if (this.dragging) {
+            this.object.position.copy(this._positionStart);
+            this.object.quaternion.copy(this._quaternionStart);
+            this.object.scale.copy(this._scaleStart);
+            this.dispatchEvent(_changeEvent);
+            this.dispatchEvent(_objectChangeEvent);
+            this.pointStart.copy(this.pointEnd);
+        }
+    }
+    getRaycaster() {
+        return _raycaster;
+    }
+    // TODO: deprecate
+    getMode() {
+        return this.mode;
+    }
+    setMode(mode) {
+        this.mode = mode;
+    }
+    setTranslationSnap(translationSnap) {
+        this.translationSnap = translationSnap;
+    }
+    setRotationSnap(rotationSnap) {
+        this.rotationSnap = rotationSnap;
+    }
+    setScaleSnap(scaleSnap) {
+        this.scaleSnap = scaleSnap;
+    }
+    setSize(size) {
+        this.size = size;
+    }
+    setSpace(space) {
+        this.space = space;
+    }
+    update() {
+        console.warn('THREE.TransformControls: update function has no more functionality and therefore has been deprecated.');
+    }
+}
+TransformControls.prototype.isTransformControls = true;
+// mouse / touch event handlers
+function getPointer(event) {
+    if (this.domElement.ownerDocument.pointerLockElement) return {
+        x: 0,
+        y: 0,
+        button: event.button
+    };
+    else {
+        const rect = this.domElement.getBoundingClientRect();
+        return {
+            x: (event.clientX - rect.left) / rect.width * 2 - 1,
+            y: -(event.clientY - rect.top) / rect.height * 2 + 1,
+            button: event.button
+        };
+    }
+}
+function onPointerHover(event) {
+    if (!this.enabled) return;
+    switch(event.pointerType){
+        case 'mouse':
+        case 'pen':
+            this.pointerHover(this._getPointer(event));
+            break;
+    }
+}
+function onPointerDown(event) {
+    if (!this.enabled) return;
+    if (!document.pointerLockElement) this.domElement.setPointerCapture(event.pointerId);
+    this.domElement.addEventListener('pointermove', this._onPointerMove);
+    this.pointerHover(this._getPointer(event));
+    this.pointerDown(this._getPointer(event));
+}
+function onPointerMove(event) {
+    if (!this.enabled) return;
+    this.pointerMove(this._getPointer(event));
+}
+function onPointerUp(event) {
+    if (!this.enabled) return;
+    this.domElement.releasePointerCapture(event.pointerId);
+    this.domElement.removeEventListener('pointermove', this._onPointerMove);
+    this.pointerUp(this._getPointer(event));
+}
+function intersectObjectWithRay(object, raycaster, includeInvisible) {
+    const allIntersections = raycaster.intersectObject(object, true);
+    for(let i = 0; i < allIntersections.length; i++){
+        if (allIntersections[i].object.visible || includeInvisible) return allIntersections[i];
+    }
+    return false;
+}
+//
+// Reusable utility variables
+const _tempEuler = new _three.Euler();
+const _alignVector = new _three.Vector3(0, 1, 0);
+const _zeroVector = new _three.Vector3(0, 0, 0);
+const _lookAtMatrix = new _three.Matrix4();
+const _tempQuaternion2 = new _three.Quaternion();
+const _identityQuaternion = new _three.Quaternion();
+const _dirVector = new _three.Vector3();
+const _tempMatrix = new _three.Matrix4();
+const _unitX = new _three.Vector3(1, 0, 0);
+const _unitY = new _three.Vector3(0, 1, 0);
+const _unitZ = new _three.Vector3(0, 0, 1);
+const _v1 = new _three.Vector3();
+const _v2 = new _three.Vector3();
+const _v3 = new _three.Vector3();
+class TransformControlsGizmo extends _three.Object3D {
+    constructor(){
+        super();
+        this.type = 'TransformControlsGizmo';
+        // shared materials
+        const gizmoMaterial = new _three.MeshBasicMaterial({
+            depthTest: false,
+            depthWrite: false,
+            fog: false,
+            toneMapped: false,
+            transparent: true
+        });
+        const gizmoLineMaterial = new _three.LineBasicMaterial({
+            depthTest: false,
+            depthWrite: false,
+            fog: false,
+            toneMapped: false,
+            transparent: true
+        });
+        // Make unique material for each axis/color
+        const matInvisible = gizmoMaterial.clone();
+        matInvisible.opacity = 0.15;
+        const matHelper = gizmoLineMaterial.clone();
+        matHelper.opacity = 0.5;
+        const matRed = gizmoMaterial.clone();
+        matRed.color.setHex(16711680);
+        const matGreen = gizmoMaterial.clone();
+        matGreen.color.setHex(65280);
+        const matBlue = gizmoMaterial.clone();
+        matBlue.color.setHex(255);
+        const matRedTransparent = gizmoMaterial.clone();
+        matRedTransparent.color.setHex(16711680);
+        matRedTransparent.opacity = 0.5;
+        const matGreenTransparent = gizmoMaterial.clone();
+        matGreenTransparent.color.setHex(65280);
+        matGreenTransparent.opacity = 0.5;
+        const matBlueTransparent = gizmoMaterial.clone();
+        matBlueTransparent.color.setHex(255);
+        matBlueTransparent.opacity = 0.5;
+        const matWhiteTransparent = gizmoMaterial.clone();
+        matWhiteTransparent.opacity = 0.25;
+        const matYellowTransparent = gizmoMaterial.clone();
+        matYellowTransparent.color.setHex(16776960);
+        matYellowTransparent.opacity = 0.25;
+        const matYellow = gizmoMaterial.clone();
+        matYellow.color.setHex(16776960);
+        const matGray = gizmoMaterial.clone();
+        matGray.color.setHex(7895160);
+        // reusable geometry
+        const arrowGeometry = new _three.CylinderGeometry(0, 0.04, 0.1, 12);
+        arrowGeometry.translate(0, 0.05, 0);
+        const scaleHandleGeometry = new _three.BoxGeometry(0.08, 0.08, 0.08);
+        scaleHandleGeometry.translate(0, 0.04, 0);
+        const lineGeometry = new _three.BufferGeometry();
+        lineGeometry.setAttribute('position', new _three.Float32BufferAttribute([
+            0,
+            0,
+            0,
+            1,
+            0,
+            0
+        ], 3));
+        const lineGeometry2 = new _three.CylinderGeometry(0.0075, 0.0075, 0.5, 3);
+        lineGeometry2.translate(0, 0.25, 0);
+        function CircleGeometry(radius, arc) {
+            const geometry = new _three.TorusGeometry(radius, 0.0075, 3, 64, arc * Math.PI * 2);
+            geometry.rotateY(Math.PI / 2);
+            geometry.rotateX(Math.PI / 2);
+            return geometry;
+        }
+        // Special geometry for transform helper. If scaled with position vector it spans from [0,0,0] to position
+        function TranslateHelperGeometry() {
+            const geometry = new _three.BufferGeometry();
+            geometry.setAttribute('position', new _three.Float32BufferAttribute([
+                0,
+                0,
+                0,
+                1,
+                1,
+                1
+            ], 3));
+            return geometry;
+        }
+        // Gizmo definitions - custom hierarchy definitions for setupGizmo() function
+        const gizmoTranslate = {
+            X: [
+                [
+                    new _three.Mesh(arrowGeometry, matRed),
+                    [
+                        0.5,
+                        0,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        -Math.PI / 2
+                    ]
+                ],
+                [
+                    new _three.Mesh(arrowGeometry, matRed),
+                    [
+                        -0.5,
+                        0,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        Math.PI / 2
+                    ]
+                ],
+                [
+                    new _three.Mesh(lineGeometry2, matRed),
+                    [
+                        0,
+                        0,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        -Math.PI / 2
+                    ]
+                ]
+            ],
+            Y: [
+                [
+                    new _three.Mesh(arrowGeometry, matGreen),
+                    [
+                        0,
+                        0.5,
+                        0
+                    ]
+                ],
+                [
+                    new _three.Mesh(arrowGeometry, matGreen),
+                    [
+                        0,
+                        -0.5,
+                        0
+                    ],
+                    [
+                        Math.PI,
+                        0,
+                        0
+                    ]
+                ],
+                [
+                    new _three.Mesh(lineGeometry2, matGreen)
+                ]
+            ],
+            Z: [
+                [
+                    new _three.Mesh(arrowGeometry, matBlue),
+                    [
+                        0,
+                        0,
+                        0.5
+                    ],
+                    [
+                        Math.PI / 2,
+                        0,
+                        0
+                    ]
+                ],
+                [
+                    new _three.Mesh(arrowGeometry, matBlue),
+                    [
+                        0,
+                        0,
+                        -0.5
+                    ],
+                    [
+                        -Math.PI / 2,
+                        0,
+                        0
+                    ]
+                ],
+                [
+                    new _three.Mesh(lineGeometry2, matBlue),
+                    null,
+                    [
+                        Math.PI / 2,
+                        0,
+                        0
+                    ]
+                ]
+            ],
+            XYZ: [
+                [
+                    new _three.Mesh(new _three.OctahedronGeometry(0.1, 0), matWhiteTransparent.clone()),
+                    [
+                        0,
+                        0,
+                        0
+                    ]
+                ]
+            ],
+            XY: [
+                [
+                    new _three.Mesh(new _three.BoxGeometry(0.15, 0.15, 0.01), matBlueTransparent.clone()),
+                    [
+                        0.15,
+                        0.15,
+                        0
+                    ]
+                ]
+            ],
+            YZ: [
+                [
+                    new _three.Mesh(new _three.BoxGeometry(0.15, 0.15, 0.01), matRedTransparent.clone()),
+                    [
+                        0,
+                        0.15,
+                        0.15
+                    ],
+                    [
+                        0,
+                        Math.PI / 2,
+                        0
+                    ]
+                ]
+            ],
+            XZ: [
+                [
+                    new _three.Mesh(new _three.BoxGeometry(0.15, 0.15, 0.01), matGreenTransparent.clone()),
+                    [
+                        0.15,
+                        0,
+                        0.15
+                    ],
+                    [
+                        -Math.PI / 2,
+                        0,
+                        0
+                    ]
+                ]
+            ]
+        };
+        const pickerTranslate = {
+            X: [
+                [
+                    new _three.Mesh(new _three.CylinderGeometry(0.2, 0, 0.6, 4), matInvisible),
+                    [
+                        0.3,
+                        0,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        -Math.PI / 2
+                    ]
+                ],
+                [
+                    new _three.Mesh(new _three.CylinderGeometry(0.2, 0, 0.6, 4), matInvisible),
+                    [
+                        -0.3,
+                        0,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        Math.PI / 2
+                    ]
+                ]
+            ],
+            Y: [
+                [
+                    new _three.Mesh(new _three.CylinderGeometry(0.2, 0, 0.6, 4), matInvisible),
+                    [
+                        0,
+                        0.3,
+                        0
+                    ]
+                ],
+                [
+                    new _three.Mesh(new _three.CylinderGeometry(0.2, 0, 0.6, 4), matInvisible),
+                    [
+                        0,
+                        -0.3,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        Math.PI
+                    ]
+                ]
+            ],
+            Z: [
+                [
+                    new _three.Mesh(new _three.CylinderGeometry(0.2, 0, 0.6, 4), matInvisible),
+                    [
+                        0,
+                        0,
+                        0.3
+                    ],
+                    [
+                        Math.PI / 2,
+                        0,
+                        0
+                    ]
+                ],
+                [
+                    new _three.Mesh(new _three.CylinderGeometry(0.2, 0, 0.6, 4), matInvisible),
+                    [
+                        0,
+                        0,
+                        -0.3
+                    ],
+                    [
+                        -Math.PI / 2,
+                        0,
+                        0
+                    ]
+                ]
+            ],
+            XYZ: [
+                [
+                    new _three.Mesh(new _three.OctahedronGeometry(0.2, 0), matInvisible)
+                ]
+            ],
+            XY: [
+                [
+                    new _three.Mesh(new _three.BoxGeometry(0.2, 0.2, 0.01), matInvisible),
+                    [
+                        0.15,
+                        0.15,
+                        0
+                    ]
+                ]
+            ],
+            YZ: [
+                [
+                    new _three.Mesh(new _three.BoxGeometry(0.2, 0.2, 0.01), matInvisible),
+                    [
+                        0,
+                        0.15,
+                        0.15
+                    ],
+                    [
+                        0,
+                        Math.PI / 2,
+                        0
+                    ]
+                ]
+            ],
+            XZ: [
+                [
+                    new _three.Mesh(new _three.BoxGeometry(0.2, 0.2, 0.01), matInvisible),
+                    [
+                        0.15,
+                        0,
+                        0.15
+                    ],
+                    [
+                        -Math.PI / 2,
+                        0,
+                        0
+                    ]
+                ]
+            ]
+        };
+        const helperTranslate = {
+            START: [
+                [
+                    new _three.Mesh(new _three.OctahedronGeometry(0.01, 2), matHelper),
+                    null,
+                    null,
+                    null,
+                    'helper'
+                ]
+            ],
+            END: [
+                [
+                    new _three.Mesh(new _three.OctahedronGeometry(0.01, 2), matHelper),
+                    null,
+                    null,
+                    null,
+                    'helper'
+                ]
+            ],
+            DELTA: [
+                [
+                    new _three.Line(TranslateHelperGeometry(), matHelper),
+                    null,
+                    null,
+                    null,
+                    'helper'
+                ]
+            ],
+            X: [
+                [
+                    new _three.Line(lineGeometry, matHelper.clone()),
+                    [
+                        -1000,
+                        0,
+                        0
+                    ],
+                    null,
+                    [
+                        1000000,
+                        1,
+                        1
+                    ],
+                    'helper'
+                ]
+            ],
+            Y: [
+                [
+                    new _three.Line(lineGeometry, matHelper.clone()),
+                    [
+                        0,
+                        -1000,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        Math.PI / 2
+                    ],
+                    [
+                        1000000,
+                        1,
+                        1
+                    ],
+                    'helper'
+                ]
+            ],
+            Z: [
+                [
+                    new _three.Line(lineGeometry, matHelper.clone()),
+                    [
+                        0,
+                        0,
+                        -1000
+                    ],
+                    [
+                        0,
+                        -Math.PI / 2,
+                        0
+                    ],
+                    [
+                        1000000,
+                        1,
+                        1
+                    ],
+                    'helper'
+                ]
+            ]
+        };
+        const gizmoRotate = {
+            XYZE: [
+                [
+                    new _three.Mesh(CircleGeometry(0.5, 1), matGray),
+                    null,
+                    [
+                        0,
+                        Math.PI / 2,
+                        0
+                    ]
+                ]
+            ],
+            X: [
+                [
+                    new _three.Mesh(CircleGeometry(0.5, 0.5), matRed)
+                ]
+            ],
+            Y: [
+                [
+                    new _three.Mesh(CircleGeometry(0.5, 0.5), matGreen),
+                    null,
+                    [
+                        0,
+                        0,
+                        -Math.PI / 2
+                    ]
+                ]
+            ],
+            Z: [
+                [
+                    new _three.Mesh(CircleGeometry(0.5, 0.5), matBlue),
+                    null,
+                    [
+                        0,
+                        Math.PI / 2,
+                        0
+                    ]
+                ]
+            ],
+            E: [
+                [
+                    new _three.Mesh(CircleGeometry(0.75, 1), matYellowTransparent),
+                    null,
+                    [
+                        0,
+                        Math.PI / 2,
+                        0
+                    ]
+                ]
+            ]
+        };
+        const helperRotate = {
+            AXIS: [
+                [
+                    new _three.Line(lineGeometry, matHelper.clone()),
+                    [
+                        -1000,
+                        0,
+                        0
+                    ],
+                    null,
+                    [
+                        1000000,
+                        1,
+                        1
+                    ],
+                    'helper'
+                ]
+            ]
+        };
+        const pickerRotate = {
+            XYZE: [
+                [
+                    new _three.Mesh(new _three.SphereGeometry(0.25, 10, 8), matInvisible)
+                ]
+            ],
+            X: [
+                [
+                    new _three.Mesh(new _three.TorusGeometry(0.5, 0.1, 4, 24), matInvisible),
+                    [
+                        0,
+                        0,
+                        0
+                    ],
+                    [
+                        0,
+                        -Math.PI / 2,
+                        -Math.PI / 2
+                    ]
+                ], 
+            ],
+            Y: [
+                [
+                    new _three.Mesh(new _three.TorusGeometry(0.5, 0.1, 4, 24), matInvisible),
+                    [
+                        0,
+                        0,
+                        0
+                    ],
+                    [
+                        Math.PI / 2,
+                        0,
+                        0
+                    ]
+                ], 
+            ],
+            Z: [
+                [
+                    new _three.Mesh(new _three.TorusGeometry(0.5, 0.1, 4, 24), matInvisible),
+                    [
+                        0,
+                        0,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        -Math.PI / 2
+                    ]
+                ], 
+            ],
+            E: [
+                [
+                    new _three.Mesh(new _three.TorusGeometry(0.75, 0.1, 2, 24), matInvisible)
+                ]
+            ]
+        };
+        const gizmoScale = {
+            X: [
+                [
+                    new _three.Mesh(scaleHandleGeometry, matRed),
+                    [
+                        0.5,
+                        0,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        -Math.PI / 2
+                    ]
+                ],
+                [
+                    new _three.Mesh(lineGeometry2, matRed),
+                    [
+                        0,
+                        0,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        -Math.PI / 2
+                    ]
+                ],
+                [
+                    new _three.Mesh(scaleHandleGeometry, matRed),
+                    [
+                        -0.5,
+                        0,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        Math.PI / 2
+                    ]
+                ], 
+            ],
+            Y: [
+                [
+                    new _three.Mesh(scaleHandleGeometry, matGreen),
+                    [
+                        0,
+                        0.5,
+                        0
+                    ]
+                ],
+                [
+                    new _three.Mesh(lineGeometry2, matGreen)
+                ],
+                [
+                    new _three.Mesh(scaleHandleGeometry, matGreen),
+                    [
+                        0,
+                        -0.5,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        Math.PI
+                    ]
+                ], 
+            ],
+            Z: [
+                [
+                    new _three.Mesh(scaleHandleGeometry, matBlue),
+                    [
+                        0,
+                        0,
+                        0.5
+                    ],
+                    [
+                        Math.PI / 2,
+                        0,
+                        0
+                    ]
+                ],
+                [
+                    new _three.Mesh(lineGeometry2, matBlue),
+                    [
+                        0,
+                        0,
+                        0
+                    ],
+                    [
+                        Math.PI / 2,
+                        0,
+                        0
+                    ]
+                ],
+                [
+                    new _three.Mesh(scaleHandleGeometry, matBlue),
+                    [
+                        0,
+                        0,
+                        -0.5
+                    ],
+                    [
+                        -Math.PI / 2,
+                        0,
+                        0
+                    ]
+                ]
+            ],
+            XY: [
+                [
+                    new _three.Mesh(new _three.BoxGeometry(0.15, 0.15, 0.01), matBlueTransparent),
+                    [
+                        0.15,
+                        0.15,
+                        0
+                    ]
+                ]
+            ],
+            YZ: [
+                [
+                    new _three.Mesh(new _three.BoxGeometry(0.15, 0.15, 0.01), matRedTransparent),
+                    [
+                        0,
+                        0.15,
+                        0.15
+                    ],
+                    [
+                        0,
+                        Math.PI / 2,
+                        0
+                    ]
+                ]
+            ],
+            XZ: [
+                [
+                    new _three.Mesh(new _three.BoxGeometry(0.15, 0.15, 0.01), matGreenTransparent),
+                    [
+                        0.15,
+                        0,
+                        0.15
+                    ],
+                    [
+                        -Math.PI / 2,
+                        0,
+                        0
+                    ]
+                ]
+            ],
+            XYZ: [
+                [
+                    new _three.Mesh(new _three.BoxGeometry(0.1, 0.1, 0.1), matWhiteTransparent.clone())
+                ], 
+            ]
+        };
+        const pickerScale = {
+            X: [
+                [
+                    new _three.Mesh(new _three.CylinderGeometry(0.2, 0, 0.6, 4), matInvisible),
+                    [
+                        0.3,
+                        0,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        -Math.PI / 2
+                    ]
+                ],
+                [
+                    new _three.Mesh(new _three.CylinderGeometry(0.2, 0, 0.6, 4), matInvisible),
+                    [
+                        -0.3,
+                        0,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        Math.PI / 2
+                    ]
+                ]
+            ],
+            Y: [
+                [
+                    new _three.Mesh(new _three.CylinderGeometry(0.2, 0, 0.6, 4), matInvisible),
+                    [
+                        0,
+                        0.3,
+                        0
+                    ]
+                ],
+                [
+                    new _three.Mesh(new _three.CylinderGeometry(0.2, 0, 0.6, 4), matInvisible),
+                    [
+                        0,
+                        -0.3,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        Math.PI
+                    ]
+                ]
+            ],
+            Z: [
+                [
+                    new _three.Mesh(new _three.CylinderGeometry(0.2, 0, 0.6, 4), matInvisible),
+                    [
+                        0,
+                        0,
+                        0.3
+                    ],
+                    [
+                        Math.PI / 2,
+                        0,
+                        0
+                    ]
+                ],
+                [
+                    new _three.Mesh(new _three.CylinderGeometry(0.2, 0, 0.6, 4), matInvisible),
+                    [
+                        0,
+                        0,
+                        -0.3
+                    ],
+                    [
+                        -Math.PI / 2,
+                        0,
+                        0
+                    ]
+                ]
+            ],
+            XY: [
+                [
+                    new _three.Mesh(new _three.BoxGeometry(0.2, 0.2, 0.01), matInvisible),
+                    [
+                        0.15,
+                        0.15,
+                        0
+                    ]
+                ], 
+            ],
+            YZ: [
+                [
+                    new _three.Mesh(new _three.BoxGeometry(0.2, 0.2, 0.01), matInvisible),
+                    [
+                        0,
+                        0.15,
+                        0.15
+                    ],
+                    [
+                        0,
+                        Math.PI / 2,
+                        0
+                    ]
+                ], 
+            ],
+            XZ: [
+                [
+                    new _three.Mesh(new _three.BoxGeometry(0.2, 0.2, 0.01), matInvisible),
+                    [
+                        0.15,
+                        0,
+                        0.15
+                    ],
+                    [
+                        -Math.PI / 2,
+                        0,
+                        0
+                    ]
+                ], 
+            ],
+            XYZ: [
+                [
+                    new _three.Mesh(new _three.BoxGeometry(0.2, 0.2, 0.2), matInvisible),
+                    [
+                        0,
+                        0,
+                        0
+                    ]
+                ], 
+            ]
+        };
+        const helperScale = {
+            X: [
+                [
+                    new _three.Line(lineGeometry, matHelper.clone()),
+                    [
+                        -1000,
+                        0,
+                        0
+                    ],
+                    null,
+                    [
+                        1000000,
+                        1,
+                        1
+                    ],
+                    'helper'
+                ]
+            ],
+            Y: [
+                [
+                    new _three.Line(lineGeometry, matHelper.clone()),
+                    [
+                        0,
+                        -1000,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        Math.PI / 2
+                    ],
+                    [
+                        1000000,
+                        1,
+                        1
+                    ],
+                    'helper'
+                ]
+            ],
+            Z: [
+                [
+                    new _three.Line(lineGeometry, matHelper.clone()),
+                    [
+                        0,
+                        0,
+                        -1000
+                    ],
+                    [
+                        0,
+                        -Math.PI / 2,
+                        0
+                    ],
+                    [
+                        1000000,
+                        1,
+                        1
+                    ],
+                    'helper'
+                ]
+            ]
+        };
+        // Creates an Object3D with gizmos described in custom hierarchy definition.
+        function setupGizmo(gizmoMap) {
+            const gizmo = new _three.Object3D();
+            for(const name in gizmoMap)for(let i = gizmoMap[name].length; i--;){
+                const object = gizmoMap[name][i][0].clone();
+                const position = gizmoMap[name][i][1];
+                const rotation = gizmoMap[name][i][2];
+                const scale = gizmoMap[name][i][3];
+                const tag = gizmoMap[name][i][4];
+                // name and tag properties are essential for picking and updating logic.
+                object.name = name;
+                object.tag = tag;
+                if (position) object.position.set(position[0], position[1], position[2]);
+                if (rotation) object.rotation.set(rotation[0], rotation[1], rotation[2]);
+                if (scale) object.scale.set(scale[0], scale[1], scale[2]);
+                object.updateMatrix();
+                const tempGeometry = object.geometry.clone();
+                tempGeometry.applyMatrix4(object.matrix);
+                object.geometry = tempGeometry;
+                object.renderOrder = Infinity;
+                object.position.set(0, 0, 0);
+                object.rotation.set(0, 0, 0);
+                object.scale.set(1, 1, 1);
+                gizmo.add(object);
+            }
+            return gizmo;
+        }
+        // Gizmo creation
+        this.gizmo = {};
+        this.picker = {};
+        this.helper = {};
+        this.add(this.gizmo['translate'] = setupGizmo(gizmoTranslate));
+        this.add(this.gizmo['rotate'] = setupGizmo(gizmoRotate));
+        this.add(this.gizmo['scale'] = setupGizmo(gizmoScale));
+        this.add(this.picker['translate'] = setupGizmo(pickerTranslate));
+        this.add(this.picker['rotate'] = setupGizmo(pickerRotate));
+        this.add(this.picker['scale'] = setupGizmo(pickerScale));
+        this.add(this.helper['translate'] = setupGizmo(helperTranslate));
+        this.add(this.helper['rotate'] = setupGizmo(helperRotate));
+        this.add(this.helper['scale'] = setupGizmo(helperScale));
+        // Pickers should be hidden always
+        this.picker['translate'].visible = false;
+        this.picker['rotate'].visible = false;
+        this.picker['scale'].visible = false;
+    }
+    // updateMatrixWorld will update transformations and appearance of individual handles
+    updateMatrixWorld(force) {
+        const space = this.mode === 'scale' ? 'local' : this.space; // scale always oriented to local rotation
+        const quaternion = space === 'local' ? this.worldQuaternion : _identityQuaternion;
+        // Show only gizmos for current transform mode
+        this.gizmo['translate'].visible = this.mode === 'translate';
+        this.gizmo['rotate'].visible = this.mode === 'rotate';
+        this.gizmo['scale'].visible = this.mode === 'scale';
+        this.helper['translate'].visible = this.mode === 'translate';
+        this.helper['rotate'].visible = this.mode === 'rotate';
+        this.helper['scale'].visible = this.mode === 'scale';
+        let handles = [];
+        handles = handles.concat(this.picker[this.mode].children);
+        handles = handles.concat(this.gizmo[this.mode].children);
+        handles = handles.concat(this.helper[this.mode].children);
+        for(let i = 0; i < handles.length; i++){
+            const handle = handles[i];
+            // hide aligned to camera
+            handle.visible = true;
+            handle.rotation.set(0, 0, 0);
+            handle.position.copy(this.worldPosition);
+            let factor;
+            if (this.camera.isOrthographicCamera) factor = (this.camera.top - this.camera.bottom) / this.camera.zoom;
+            else factor = this.worldPosition.distanceTo(this.cameraPosition) * Math.min(1.9 * Math.tan(Math.PI * this.camera.fov / 360) / this.camera.zoom, 7);
+            handle.scale.set(1, 1, 1).multiplyScalar(factor * this.size / 4);
+            // TODO: simplify helpers and consider decoupling from gizmo
+            if (handle.tag === 'helper') {
+                handle.visible = false;
+                if (handle.name === 'AXIS') {
+                    handle.position.copy(this.worldPositionStart);
+                    handle.visible = !!this.axis;
+                    if (this.axis === 'X') {
+                        _tempQuaternion.setFromEuler(_tempEuler.set(0, 0, 0));
+                        handle.quaternion.copy(quaternion).multiply(_tempQuaternion);
+                        if (Math.abs(_alignVector.copy(_unitX).applyQuaternion(quaternion).dot(this.eye)) > 0.9) handle.visible = false;
+                    }
+                    if (this.axis === 'Y') {
+                        _tempQuaternion.setFromEuler(_tempEuler.set(0, 0, Math.PI / 2));
+                        handle.quaternion.copy(quaternion).multiply(_tempQuaternion);
+                        if (Math.abs(_alignVector.copy(_unitY).applyQuaternion(quaternion).dot(this.eye)) > 0.9) handle.visible = false;
+                    }
+                    if (this.axis === 'Z') {
+                        _tempQuaternion.setFromEuler(_tempEuler.set(0, Math.PI / 2, 0));
+                        handle.quaternion.copy(quaternion).multiply(_tempQuaternion);
+                        if (Math.abs(_alignVector.copy(_unitZ).applyQuaternion(quaternion).dot(this.eye)) > 0.9) handle.visible = false;
+                    }
+                    if (this.axis === 'XYZE') {
+                        _tempQuaternion.setFromEuler(_tempEuler.set(0, Math.PI / 2, 0));
+                        _alignVector.copy(this.rotationAxis);
+                        handle.quaternion.setFromRotationMatrix(_lookAtMatrix.lookAt(_zeroVector, _alignVector, _unitY));
+                        handle.quaternion.multiply(_tempQuaternion);
+                        handle.visible = this.dragging;
+                    }
+                    if (this.axis === 'E') handle.visible = false;
+                } else if (handle.name === 'START') {
+                    handle.position.copy(this.worldPositionStart);
+                    handle.visible = this.dragging;
+                } else if (handle.name === 'END') {
+                    handle.position.copy(this.worldPosition);
+                    handle.visible = this.dragging;
+                } else if (handle.name === 'DELTA') {
+                    handle.position.copy(this.worldPositionStart);
+                    handle.quaternion.copy(this.worldQuaternionStart);
+                    _tempVector.set(0.0000000001, 0.0000000001, 0.0000000001).add(this.worldPositionStart).sub(this.worldPosition).multiplyScalar(-1);
+                    _tempVector.applyQuaternion(this.worldQuaternionStart.clone().invert());
+                    handle.scale.copy(_tempVector);
+                    handle.visible = this.dragging;
+                } else {
+                    handle.quaternion.copy(quaternion);
+                    if (this.dragging) handle.position.copy(this.worldPositionStart);
+                    else handle.position.copy(this.worldPosition);
+                    if (this.axis) handle.visible = this.axis.search(handle.name) !== -1;
+                }
+                continue;
+            }
+            // Align handles to current local or world rotation
+            handle.quaternion.copy(quaternion);
+            if (this.mode === 'translate' || this.mode === 'scale') {
+                // Hide translate and scale axis facing the camera
+                const AXIS_HIDE_TRESHOLD = 0.99;
+                const PLANE_HIDE_TRESHOLD = 0.2;
+                if (handle.name === 'X') {
+                    if (Math.abs(_alignVector.copy(_unitX).applyQuaternion(quaternion).dot(this.eye)) > AXIS_HIDE_TRESHOLD) {
+                        handle.scale.set(0.0000000001, 0.0000000001, 0.0000000001);
+                        handle.visible = false;
+                    }
+                }
+                if (handle.name === 'Y') {
+                    if (Math.abs(_alignVector.copy(_unitY).applyQuaternion(quaternion).dot(this.eye)) > AXIS_HIDE_TRESHOLD) {
+                        handle.scale.set(0.0000000001, 0.0000000001, 0.0000000001);
+                        handle.visible = false;
+                    }
+                }
+                if (handle.name === 'Z') {
+                    if (Math.abs(_alignVector.copy(_unitZ).applyQuaternion(quaternion).dot(this.eye)) > AXIS_HIDE_TRESHOLD) {
+                        handle.scale.set(0.0000000001, 0.0000000001, 0.0000000001);
+                        handle.visible = false;
+                    }
+                }
+                if (handle.name === 'XY') {
+                    if (Math.abs(_alignVector.copy(_unitZ).applyQuaternion(quaternion).dot(this.eye)) < PLANE_HIDE_TRESHOLD) {
+                        handle.scale.set(0.0000000001, 0.0000000001, 0.0000000001);
+                        handle.visible = false;
+                    }
+                }
+                if (handle.name === 'YZ') {
+                    if (Math.abs(_alignVector.copy(_unitX).applyQuaternion(quaternion).dot(this.eye)) < PLANE_HIDE_TRESHOLD) {
+                        handle.scale.set(0.0000000001, 0.0000000001, 0.0000000001);
+                        handle.visible = false;
+                    }
+                }
+                if (handle.name === 'XZ') {
+                    if (Math.abs(_alignVector.copy(_unitY).applyQuaternion(quaternion).dot(this.eye)) < PLANE_HIDE_TRESHOLD) {
+                        handle.scale.set(0.0000000001, 0.0000000001, 0.0000000001);
+                        handle.visible = false;
+                    }
+                }
+            } else if (this.mode === 'rotate') {
+                // Align handles to current local or world rotation
+                _tempQuaternion2.copy(quaternion);
+                _alignVector.copy(this.eye).applyQuaternion(_tempQuaternion.copy(quaternion).invert());
+                if (handle.name.search('E') !== -1) handle.quaternion.setFromRotationMatrix(_lookAtMatrix.lookAt(this.eye, _zeroVector, _unitY));
+                if (handle.name === 'X') {
+                    _tempQuaternion.setFromAxisAngle(_unitX, Math.atan2(-_alignVector.y, _alignVector.z));
+                    _tempQuaternion.multiplyQuaternions(_tempQuaternion2, _tempQuaternion);
+                    handle.quaternion.copy(_tempQuaternion);
+                }
+                if (handle.name === 'Y') {
+                    _tempQuaternion.setFromAxisAngle(_unitY, Math.atan2(_alignVector.x, _alignVector.z));
+                    _tempQuaternion.multiplyQuaternions(_tempQuaternion2, _tempQuaternion);
+                    handle.quaternion.copy(_tempQuaternion);
+                }
+                if (handle.name === 'Z') {
+                    _tempQuaternion.setFromAxisAngle(_unitZ, Math.atan2(_alignVector.y, _alignVector.x));
+                    _tempQuaternion.multiplyQuaternions(_tempQuaternion2, _tempQuaternion);
+                    handle.quaternion.copy(_tempQuaternion);
+                }
+            }
+            // Hide disabled axes
+            handle.visible = handle.visible && (handle.name.indexOf('X') === -1 || this.showX);
+            handle.visible = handle.visible && (handle.name.indexOf('Y') === -1 || this.showY);
+            handle.visible = handle.visible && (handle.name.indexOf('Z') === -1 || this.showZ);
+            handle.visible = handle.visible && (handle.name.indexOf('E') === -1 || this.showX && this.showY && this.showZ);
+            // highlight selected axis
+            handle.material._color = handle.material._color || handle.material.color.clone();
+            handle.material._opacity = handle.material._opacity || handle.material.opacity;
+            handle.material.color.copy(handle.material._color);
+            handle.material.opacity = handle.material._opacity;
+            if (this.enabled && this.axis) {
+                if (handle.name === this.axis) {
+                    handle.material.color.setHex(16776960);
+                    handle.material.opacity = 1;
+                } else if (this.axis.split('').some(function(a) {
+                    return handle.name === a;
+                })) {
+                    handle.material.color.setHex(16776960);
+                    handle.material.opacity = 1;
+                }
+            }
+        }
+        super.updateMatrixWorld(force);
+    }
+}
+TransformControlsGizmo.prototype.isTransformControlsGizmo = true;
+//
+class TransformControlsPlane extends _three.Mesh {
+    constructor(){
+        super(new _three.PlaneGeometry(100000, 100000, 2, 2), new _three.MeshBasicMaterial({
+            visible: false,
+            wireframe: true,
+            side: _three.DoubleSide,
+            transparent: true,
+            opacity: 0.1,
+            toneMapped: false
+        }));
+        this.type = 'TransformControlsPlane';
+    }
+    updateMatrixWorld(force) {
+        let space = this.space;
+        this.position.copy(this.worldPosition);
+        if (this.mode === 'scale') space = 'local'; // scale always oriented to local rotation
+        _v1.copy(_unitX).applyQuaternion(space === 'local' ? this.worldQuaternion : _identityQuaternion);
+        _v2.copy(_unitY).applyQuaternion(space === 'local' ? this.worldQuaternion : _identityQuaternion);
+        _v3.copy(_unitZ).applyQuaternion(space === 'local' ? this.worldQuaternion : _identityQuaternion);
+        // Align the plane for current transform mode, axis and space.
+        _alignVector.copy(_v2);
+        switch(this.mode){
+            case 'translate':
+            case 'scale':
+                switch(this.axis){
+                    case 'X':
+                        _alignVector.copy(this.eye).cross(_v1);
+                        _dirVector.copy(_v1).cross(_alignVector);
+                        break;
+                    case 'Y':
+                        _alignVector.copy(this.eye).cross(_v2);
+                        _dirVector.copy(_v2).cross(_alignVector);
+                        break;
+                    case 'Z':
+                        _alignVector.copy(this.eye).cross(_v3);
+                        _dirVector.copy(_v3).cross(_alignVector);
+                        break;
+                    case 'XY':
+                        _dirVector.copy(_v3);
+                        break;
+                    case 'YZ':
+                        _dirVector.copy(_v1);
+                        break;
+                    case 'XZ':
+                        _alignVector.copy(_v3);
+                        _dirVector.copy(_v2);
+                        break;
+                    case 'XYZ':
+                    case 'E':
+                        _dirVector.set(0, 0, 0);
+                        break;
+                }
+                break;
+            case 'rotate':
+            default:
+                // special case for rotate
+                _dirVector.set(0, 0, 0);
+        }
+        if (_dirVector.length() === 0) // If in rotate mode, make the plane parallel to camera
+        this.quaternion.copy(this.cameraQuaternion);
+        else {
+            _tempMatrix.lookAt(_tempVector.set(0, 0, 0), _dirVector, _alignVector);
+            this.quaternion.setFromRotationMatrix(_tempMatrix);
+        }
+        super.updateMatrixWorld(force);
+    }
+}
+TransformControlsPlane.prototype.isTransformControlsPlane = true;
+
+},{"three":"ktPTu","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"l2iy1":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _three = require("three");
+var _cameraControls = require("camera-controls");
+var _cameraControlsDefault = parcelHelpers.interopDefault(_cameraControls);
+class Core {
+    constructor(options){
+        this.scene = new _three.Scene();
+        // this.scene.background = this.color("#ff00ff");
+        this.clock = new _three.Clock();
+        this.raycaster = new _three.Raycaster();
+        this.mouse = {
+            x: 0,
+            y: 0
+        };
+        this.touch = {
+            x: 0,
+            y: 0
+        };
+        this.pointer = new _three.Vector2();
+        this.container = options.dom;
+        this.width = this.container.offsetWidth || this.container.innerWidth;
+        this.height = this.container.offsetHeight || this.container.innerHeight;
+        this.aspect = this.width / this.height;
+        // console.log(this.height, this.width)
+        this.renderer = new _three.WebGLRenderer({
+            transparent: true,
+            alpha: true
+        });
+        // this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.setSize(this.width, this.height);
+        // this.renderer.setClearColor(0x000000, 1);
+        // this.renderer.physicallyCorrectLights = true;
+        this.renderer.outputEncoding = _three.sRGBEncoding;
+        this.renderer.autoClear = false;
+        this.renderer.toneMapping = _three.ReinhardToneMapping;
+        this.container.appendChild(this.renderer.domElement);
+        this.camera = new _three.PerspectiveCamera(45, this.aspect, 0.0001, 10000);
+        this.camera.position.set(-50, 140, -15);
+        this.camera.aspect = this.width / this.height;
+        _cameraControlsDefault.default.install({
+            THREE: _three
+        });
+        this.controls = new _cameraControlsDefault.default(this.camera, this.renderer.domElement);
+        this.controls.setTarget(0, 0, 0, true);
+        const degreeInRad = _three.MathUtils.degToRad(25);
+        // this.controls.minPolarAngle = degreeInRad;
+        // this.controls.maxPolarAngle = degreeInRad;
+        // this.controls.minAzimuthAngle = degreeInRad;
+        // this.controls.maxAzimuthAngle = degreeInRad;
+        this.controls.rotatePolarTo(degreeInRad, true);
+        this.controls.draggingDampingFactor = 0.1;
+        this.controls.azimuthRotateSpeed = 0.15;
+        this.controls.polarRotateSpeed = 0.5;
+        this.controls.restThreshold = 5;
+        this.updateControls();
+        this.time = 0;
+        this.isPlaying = true;
+        this.setLighting();
+        const axesHelper = new _three.AxesHelper(50);
+        this.scene.add(axesHelper);
+        window.addEventListener('touchmove', this.TouchMoveManager.bind(this), false);
+        window.addEventListener('touchstart', this.TouchStartManager.bind(this), false);
+        window.addEventListener('touchend', this.TouchEndManager.bind(this), false);
+        window.addEventListener('click', this.ClickManager.bind(this), false);
+    }
+    ClickManager(event) {
+        event.preventDefault();
+        this.mouse.x = event.offsetX / this.renderer.domElement.clientWidth * 2 - 1;
+        this.mouse.y = -(event.offsetY / this.renderer.domElement.clientHeight) * 2 + 1;
+        this.RaycastHandler();
+    }
+    TouchMoveManager(event) {
+        event.preventDefault();
+    }
+    TouchStartManager(event) {
+        const touch = event.changedTouches[0];
+        if (touch.clientX && touch.clientY) this.touch = {
+            x: touch.clientX,
+            y: touch.clientY
+        };
+    }
+    TouchEndManager(event) {
+        const touch = event.changedTouches[0];
+        if (!touch || !this.touch || event.target.tagName === 'A' || event.target.tagName === 'BUTTON') return;
+        const diff = {
+            x: Math.abs(this.touch.x - touch.clientX),
+            y: Math.abs(this.touch.y - touch.clientY)
+        };
+        // if user drags
+        if (diff.x > 0.2 || diff.y > 0.2) return;
+        this.mouse.x = touch.clientX / this.renderer.domElement.clientWidth * 2 - 1;
+        this.mouse.y = -(touch.clientY / this.renderer.domElement.clientHeight) * 2 + 1;
+        this.RaycastHandler();
+    }
+    RaycastHandler() {
+        this.raycaster.setFromCamera(this.mouse, this.camera);
+        const intersects = this.raycaster.intersectObjects(this.scene.children, true);
+        console.log('🐞: Core -> ClickManager -> intersects', intersects);
+        // console.log(intersects[0].point)
+        for(let i = 0; i < intersects.length; i++)if (intersects[i].object.callback) {
+            intersects[i].object.callback();
+            return;
+        }
+    }
+    setLighting() {
+        this.scene.add(new _three.AmbientLight(4210752));
+        const pointLight = new _three.PointLight(16777215, 1);
+        this.camera.add(pointLight);
+    }
+    color(color) {
+        return new _three.Color(color);
+    }
+    fixHeightProblem() {
+        // The trick to viewport units on mobile browsers
+        const vh = window.innerHeight * 0.01;
+        document.documentElement.style.setProperty('--vh', `${vh}px`);
+    }
+    setupResize() {
+        window.addEventListener("resize", this.resize.bind(this), false);
+    }
+    resize() {
+        this.fixHeightProblem();
+        this.width = this.container.offsetWidth || this.container.innerWidth;
+        this.height = this.container.offsetHeight || this.container.innerHeight;
+        this.renderer.setSize(this.width, this.height);
+        this.renderer.render(this.scene, this.camera);
+        this.camera.aspect = this.width / this.height;
+        this.camera.updateProjectionMatrix();
+        this.renderer.render(this.scene, this.camera);
+    }
+    stop() {
+        this.isPlaying = false;
+    }
+    play() {
+        if (!this.isPlaying) {
+            this.isPlaying = true;
+            this.render();
+        }
+    }
+    updateControls() {
+        this.controls.update(this.clock.getDelta());
+    }
+    renderManager() {
+        if (!this.isPlaying) return;
+        this.time += 0.01;
+        this.renderer.clear();
+        this.renderer.clearDepth();
+        this.updateControls();
+    }
+}
+exports.default = Core;
+
+},{"three":"ktPTu","camera-controls":"8UL70","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"8UL70":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "default", ()=>CameraControls
+);
+/*!
+ * camera-controls
+ * https://github.com/yomotsu/camera-controls
+ * (c) 2017 @yomotsu
+ * Released under the MIT License.
+ */ // see https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/buttons#value
+const MOUSE_BUTTON = {
+    LEFT: 1,
+    RIGHT: 2,
+    MIDDLE: 4
+};
+const ACTION = Object.freeze({
+    NONE: 0,
+    ROTATE: 1,
+    TRUCK: 2,
+    OFFSET: 4,
+    DOLLY: 8,
+    ZOOM: 16,
+    TOUCH_ROTATE: 32,
+    TOUCH_TRUCK: 64,
+    TOUCH_OFFSET: 128,
+    TOUCH_DOLLY: 256,
+    TOUCH_ZOOM: 512,
+    TOUCH_DOLLY_TRUCK: 1024,
+    TOUCH_DOLLY_OFFSET: 2048,
+    TOUCH_ZOOM_TRUCK: 4096,
+    TOUCH_ZOOM_OFFSET: 8192
+});
+function isPerspectiveCamera(camera) {
+    return camera.isPerspectiveCamera;
+}
+function isOrthographicCamera(camera) {
+    return camera.isOrthographicCamera;
+}
+const PI_2 = Math.PI * 2;
+const PI_HALF = Math.PI / 2;
+const EPSILON = 0.00001;
+function approxZero(number, error = EPSILON) {
+    return Math.abs(number) < error;
+}
+function approxEquals(a, b, error = EPSILON) {
+    return approxZero(a - b, error);
+}
+function roundToStep(value, step) {
+    return Math.round(value / step) * step;
+}
+function infinityToMaxNumber(value) {
+    if (isFinite(value)) return value;
+    if (value < 0) return -Number.MAX_VALUE;
+    return Number.MAX_VALUE;
+}
+function maxNumberToInfinity(value) {
+    if (Math.abs(value) < Number.MAX_VALUE) return value;
+    return value * Infinity;
+}
+function extractClientCoordFromEvent(pointers, out) {
+    out.set(0, 0);
+    pointers.forEach((pointer)=>{
+        out.x += pointer.clientX;
+        out.y += pointer.clientY;
+    });
+    out.x /= pointers.length;
+    out.y /= pointers.length;
+}
+function notSupportedInOrthographicCamera(camera, message) {
+    if (isOrthographicCamera(camera)) {
+        console.warn(`${message} is not supported in OrthographicCamera`);
+        return true;
+    }
+    return false;
+}
+/**
+ * A compat function for `Quaternion.invert()` / `Quaternion.inverse()`.
+ * `Quaternion.invert()` is introduced in r123 and `Quaternion.inverse()` emits a warning.
+ * We are going to use this compat for a while.
+ * @param target A target quaternion
+ */ function quatInvertCompat(target) {
+    if (target.invert) target.invert();
+    else target.inverse();
+    return target;
+}
+class EventDispatcher {
+    constructor(){
+        this._listeners = {};
+    }
+    /**
+     * Adds the specified event listener.
+     * @param type event name
+     * @param listener handler function
+     * @category Methods
+     */ addEventListener(type, listener) {
+        const listeners = this._listeners;
+        if (listeners[type] === undefined) listeners[type] = [];
+        if (listeners[type].indexOf(listener) === -1) listeners[type].push(listener);
+    }
+    // hasEventListener( type: string, listener: Listener ): boolean {
+    // 	const listeners = this._listeners;
+    // 	return listeners[ type ] !== undefined && listeners[ type ].indexOf( listener ) !== - 1;
+    // }
+    /**
+     * Removes the specified event listener
+     * @param type event name
+     * @param listener handler function
+     * @category Methods
+     */ removeEventListener(type, listener) {
+        const listeners = this._listeners;
+        const listenerArray = listeners[type];
+        if (listenerArray !== undefined) {
+            const index = listenerArray.indexOf(listener);
+            if (index !== -1) listenerArray.splice(index, 1);
+        }
+    }
+    /**
+     * Removes all event listeners
+     * @param type event name
+     * @category Methods
+     */ removeAllEventListeners(type) {
+        if (!type) {
+            this._listeners = {};
+            return;
+        }
+        if (Array.isArray(this._listeners[type])) this._listeners[type].length = 0;
+    }
+    /**
+     * Fire an event type.
+     * @param event DispatcherEvent
+     * @category Methods
+     */ dispatchEvent(event) {
+        const listeners = this._listeners;
+        const listenerArray = listeners[event.type];
+        if (listenerArray !== undefined) {
+            event.target = this;
+            const array = listenerArray.slice(0);
+            for(let i = 0, l = array.length; i < l; i++)array[i].call(this, event);
+        }
+    }
+}
+const isBrowser = typeof window !== 'undefined';
+const isMac = isBrowser && /Mac/.test(navigator.platform);
+const isPointerEventsNotSupported = !(isBrowser && 'PointerEvent' in window); // Safari 12 does not support PointerEvents API
+const TOUCH_DOLLY_FACTOR = 0.125;
+let THREE;
+let _ORIGIN;
+let _AXIS_Y;
+let _AXIS_Z;
+let _v2;
+let _v3A;
+let _v3B;
+let _v3C;
+let _xColumn;
+let _yColumn;
+let _zColumn;
+let _deltaTarget;
+let _deltaOffset;
+let _sphericalA;
+let _sphericalB;
+let _box3A;
+let _box3B;
+let _sphere;
+let _quaternionA;
+let _quaternionB;
+let _rotationMatrix;
+let _raycaster;
+class CameraControls extends EventDispatcher {
+    /**
+     * Creates a `CameraControls` instance.
+     *
+     * Note:
+     * You **must install** three.js before using camera-controls. see [#install](#install)
+     * Not doing so will lead to runtime errors (`undefined` references to THREE).
+     *
+     * e.g.
+     * ```
+     * CameraControls.install( { THREE } );
+     * const cameraControls = new CameraControls( camera, domElement );
+     * ```
+     *
+     * @param camera A `THREE.PerspectiveCamera` or `THREE.OrthographicCamera` to be controlled.
+     * @param domElement A `HTMLElement` for the draggable area, usually `renderer.domElement`.
+     * @category Constructor
+     */ constructor(camera1, domElement){
+        super();
+        /**
+         * Minimum vertical angle in radians.
+         * The angle has to be between `0` and `.maxPolarAngle` inclusive.
+         * The default value is `0`.
+         *
+         * e.g.
+         * ```
+         * cameraControls.maxPolarAngle = 0;
+         * ```
+         * @category Properties
+         */ this.minPolarAngle = 0; // radians
+        /**
+         * Maximum vertical angle in radians.
+         * The angle has to be between `.maxPolarAngle` and `Math.PI` inclusive.
+         * The default value is `Math.PI`.
+         *
+         * e.g.
+         * ```
+         * cameraControls.maxPolarAngle = Math.PI;
+         * ```
+         * @category Properties
+         */ this.maxPolarAngle = Math.PI; // radians
+        /**
+         * Minimum horizontal angle in radians.
+         * The angle has to be less than `.maxAzimuthAngle`.
+         * The default value is `- Infinity`.
+         *
+         * e.g.
+         * ```
+         * cameraControls.minAzimuthAngle = - Infinity;
+         * ```
+         * @category Properties
+         */ this.minAzimuthAngle = -Infinity; // radians
+        /**
+         * Maximum horizontal angle in radians.
+         * The angle has to be greater than `.minAzimuthAngle`.
+         * The default value is `Infinity`.
+         *
+         * e.g.
+         * ```
+         * cameraControls.maxAzimuthAngle = Infinity;
+         * ```
+         * @category Properties
+         */ this.maxAzimuthAngle = Infinity; // radians
+        // How far you can dolly in and out ( PerspectiveCamera only )
+        /**
+         * Minimum distance for dolly. The value must be higher than `0`.
+         * PerspectiveCamera only.
+         * @category Properties
+         */ this.minDistance = 0;
+        /**
+         * Maximum distance for dolly. The value must be higher than `minDistance`.
+         * PerspectiveCamera only.
+         * @category Properties
+         */ this.maxDistance = Infinity;
+        /**
+         * `true` to enable Infinity Dolly.
+         * When the Dolly distance is less than the `minDistance`, radius of the sphere will be set `minDistance` automatically.
+         * @category Properties
+         */ this.infinityDolly = false;
+        /**
+         * Minimum camera zoom.
+         * @category Properties
+         */ this.minZoom = 0.01;
+        /**
+         * Maximum camera zoom.
+         * @category Properties
+         */ this.maxZoom = Infinity;
+        /**
+         * The damping inertia.
+         * The value must be between `Math.EPSILON` to `1` inclusive.
+         * Setting `1` to disable smooth transitions.
+         * @category Properties
+         */ this.dampingFactor = 0.05;
+        /**
+         * The damping inertia while dragging.
+         * The value must be between `Math.EPSILON` to `1` inclusive.
+         * Setting `1` to disable smooth transitions.
+         * @category Properties
+         */ this.draggingDampingFactor = 0.25;
+        /**
+         * Speed of azimuth (horizontal) rotation.
+         * @category Properties
+         */ this.azimuthRotateSpeed = 1;
+        /**
+         * Speed of polar (vertical) rotation.
+         * @category Properties
+         */ this.polarRotateSpeed = 1;
+        /**
+         * Speed of mouse-wheel dollying.
+         * @category Properties
+         */ this.dollySpeed = 1;
+        /**
+         * Speed of drag for truck and pedestal.
+         * @category Properties
+         */ this.truckSpeed = 2;
+        /**
+         * `true` to enable Dolly-in to the mouse cursor coords.
+         * @category Properties
+         */ this.dollyToCursor = false;
+        /**
+         * @category Properties
+         */ this.dragToOffset = false;
+        /**
+         * The same as `.screenSpacePanning` in three.js's OrbitControls.
+         * @category Properties
+         */ this.verticalDragToForward = false;
+        /**
+         * Friction ratio of the boundary.
+         * @category Properties
+         */ this.boundaryFriction = 0;
+        /**
+         * Controls how soon the `rest` event fires as the camera slows.
+         * @category Properties
+         */ this.restThreshold = 0.01;
+        /**
+         * An array of Meshes to collide with camera.
+         * Be aware colliderMeshes may decrease performance. The collision test uses 4 raycasters from the camera since the near plane has 4 corners.
+         * @category Properties
+         */ this.colliderMeshes = [];
+        /**
+         * Force cancel user dragging.
+         * @category Methods
+         */ // cancel will be overwritten in the constructor.
+        this.cancel = ()=>{};
+        this._enabled = true;
+        this._state = ACTION.NONE;
+        this._viewport = null;
+        this._dollyControlAmount = 0;
+        this._hasRested = true;
+        this._boundaryEnclosesCamera = false;
+        this._needsUpdate = true;
+        this._updatedLastTime = false;
+        this._elementRect = new DOMRect();
+        this._activePointers = [];
+        this._truckInternal = (deltaX, deltaY, dragToOffset)=>{
+            if (isPerspectiveCamera(this._camera)) {
+                const offset = _v3A.copy(this._camera.position).sub(this._target);
+                // half of the fov is center to top of screen
+                const fov = this._camera.getEffectiveFOV() * THREE.MathUtils.DEG2RAD;
+                const targetDistance = offset.length() * Math.tan(fov * 0.5);
+                const truckX = this.truckSpeed * deltaX * targetDistance / this._elementRect.height;
+                const pedestalY = this.truckSpeed * deltaY * targetDistance / this._elementRect.height;
+                if (this.verticalDragToForward) {
+                    dragToOffset ? this.setFocalOffset(this._focalOffsetEnd.x + truckX, this._focalOffsetEnd.y, this._focalOffsetEnd.z, true) : this.truck(truckX, 0, true);
+                    this.forward(-pedestalY, true);
+                } else dragToOffset ? this.setFocalOffset(this._focalOffsetEnd.x + truckX, this._focalOffsetEnd.y + pedestalY, this._focalOffsetEnd.z, true) : this.truck(truckX, pedestalY, true);
+            } else if (isOrthographicCamera(this._camera)) {
+                // orthographic
+                const camera = this._camera;
+                const truckX = deltaX * (camera.right - camera.left) / camera.zoom / this._elementRect.width;
+                const pedestalY = deltaY * (camera.top - camera.bottom) / camera.zoom / this._elementRect.height;
+                dragToOffset ? this.setFocalOffset(this._focalOffsetEnd.x + truckX, this._focalOffsetEnd.y + pedestalY, this._focalOffsetEnd.z, true) : this.truck(truckX, pedestalY, true);
+            }
+        };
+        this._rotateInternal = (deltaX, deltaY)=>{
+            const theta = PI_2 * this.azimuthRotateSpeed * deltaX / this._elementRect.height; // divide by *height* to refer the resolution
+            const phi = PI_2 * this.polarRotateSpeed * deltaY / this._elementRect.height;
+            this.rotate(theta, phi, true);
+        };
+        this._dollyInternal = (delta, x, y)=>{
+            const dollyScale = Math.pow(0.95, -delta * this.dollySpeed);
+            const distance = this._sphericalEnd.radius * dollyScale;
+            const prevRadius = this._sphericalEnd.radius;
+            const signedPrevRadius = prevRadius * (delta >= 0 ? -1 : 1);
+            this.dollyTo(distance);
+            if (this.infinityDolly && (distance < this.minDistance || this.maxDistance === this.minDistance)) {
+                this._camera.getWorldDirection(_v3A);
+                this._targetEnd.add(_v3A.normalize().multiplyScalar(signedPrevRadius));
+                this._target.add(_v3A.normalize().multiplyScalar(signedPrevRadius));
+            }
+            if (this.dollyToCursor) {
+                this._dollyControlAmount += this._sphericalEnd.radius - prevRadius;
+                if (this.infinityDolly && (distance < this.minDistance || this.maxDistance === this.minDistance)) this._dollyControlAmount -= signedPrevRadius;
+                this._dollyControlCoord.set(x, y);
+            }
+            return;
+        };
+        this._zoomInternal = (delta, x, y)=>{
+            const zoomScale = Math.pow(0.95, delta * this.dollySpeed);
+            // for both PerspectiveCamera and OrthographicCamera
+            this.zoomTo(this._zoom * zoomScale);
+            if (this.dollyToCursor) {
+                this._dollyControlAmount = this._zoomEnd;
+                this._dollyControlCoord.set(x, y);
+            }
+            return;
+        };
+        // Check if the user has installed THREE
+        if (typeof THREE === 'undefined') console.error('camera-controls: `THREE` is undefined. You must first run `CameraControls.install( { THREE: THREE } )`. Check the docs for further information.');
+        this._camera = camera1;
+        this._yAxisUpSpace = new THREE.Quaternion().setFromUnitVectors(this._camera.up, _AXIS_Y);
+        this._yAxisUpSpaceInverse = quatInvertCompat(this._yAxisUpSpace.clone());
+        this._state = ACTION.NONE;
+        this._domElement = domElement;
+        this._domElement.style.touchAction = 'none';
+        this._domElement.style.userSelect = 'none';
+        this._domElement.style.webkitUserSelect = 'none';
+        // the location
+        this._target = new THREE.Vector3();
+        this._targetEnd = this._target.clone();
+        this._focalOffset = new THREE.Vector3();
+        this._focalOffsetEnd = this._focalOffset.clone();
+        // rotation
+        this._spherical = new THREE.Spherical().setFromVector3(_v3A.copy(this._camera.position).applyQuaternion(this._yAxisUpSpace));
+        this._sphericalEnd = this._spherical.clone();
+        this._zoom = this._camera.zoom;
+        this._zoomEnd = this._zoom;
+        // collisionTest uses nearPlane.s
+        this._nearPlaneCorners = [
+            new THREE.Vector3(),
+            new THREE.Vector3(),
+            new THREE.Vector3(),
+            new THREE.Vector3(), 
+        ];
+        this._updateNearPlaneCorners();
+        // Target cannot move outside of this box
+        this._boundary = new THREE.Box3(new THREE.Vector3(-Infinity, -Infinity, -Infinity), new THREE.Vector3(Infinity, Infinity, Infinity));
+        // reset
+        this._target0 = this._target.clone();
+        this._position0 = this._camera.position.clone();
+        this._zoom0 = this._zoom;
+        this._focalOffset0 = this._focalOffset.clone();
+        this._dollyControlAmount = 0;
+        this._dollyControlCoord = new THREE.Vector2();
+        // configs
+        this.mouseButtons = {
+            left: ACTION.ROTATE,
+            middle: ACTION.DOLLY,
+            right: ACTION.TRUCK,
+            wheel: isPerspectiveCamera(this._camera) ? ACTION.DOLLY : isOrthographicCamera(this._camera) ? ACTION.ZOOM : ACTION.NONE
+        };
+        this.touches = {
+            one: ACTION.TOUCH_ROTATE,
+            two: isPerspectiveCamera(this._camera) ? ACTION.TOUCH_DOLLY_TRUCK : isOrthographicCamera(this._camera) ? ACTION.TOUCH_ZOOM_TRUCK : ACTION.NONE,
+            three: ACTION.TOUCH_TRUCK
+        };
+        if (this._domElement) {
+            const dragStartPosition = new THREE.Vector2();
+            const lastDragPosition = new THREE.Vector2();
+            const dollyStart = new THREE.Vector2();
+            const onPointerDown = (event)=>{
+                if (!this._enabled) return;
+                // Don't call `event.preventDefault()` on the pointerdown event
+                // to keep receiving pointermove evens outside dragging iframe
+                // https://taye.me/blog/tips/2015/11/16/mouse-drag-outside-iframe/
+                const pointer = {
+                    pointerId: event.pointerId,
+                    clientX: event.clientX,
+                    clientY: event.clientY,
+                    deltaX: 0,
+                    deltaY: 0
+                };
+                this._activePointers.push(pointer);
+                // eslint-disable-next-line no-undef
+                this._domElement.ownerDocument.removeEventListener('pointermove', onPointerMove, {
+                    passive: false
+                });
+                this._domElement.ownerDocument.removeEventListener('pointerup', onPointerUp);
+                this._domElement.ownerDocument.addEventListener('pointermove', onPointerMove, {
+                    passive: false
+                });
+                this._domElement.ownerDocument.addEventListener('pointerup', onPointerUp);
+                startDragging(event);
+            };
+            const onMouseDown = (event)=>{
+                if (!this._enabled) return;
+                const pointer = {
+                    pointerId: 0,
+                    clientX: event.clientX,
+                    clientY: event.clientY,
+                    deltaX: 0,
+                    deltaY: 0
+                };
+                this._activePointers.push(pointer);
+                // see https://github.com/microsoft/TypeScript/issues/32912#issuecomment-522142969
+                // eslint-disable-next-line no-undef
+                this._domElement.ownerDocument.removeEventListener('mousemove', onMouseMove);
+                this._domElement.ownerDocument.removeEventListener('mouseup', onMouseUp);
+                this._domElement.ownerDocument.addEventListener('mousemove', onMouseMove);
+                this._domElement.ownerDocument.addEventListener('mouseup', onMouseUp);
+                startDragging(event);
+            };
+            const onTouchStart = (event)=>{
+                if (!this._enabled) return;
+                event.preventDefault();
+                Array.prototype.forEach.call(event.changedTouches, (touch)=>{
+                    const pointer = {
+                        pointerId: touch.identifier,
+                        clientX: touch.clientX,
+                        clientY: touch.clientY,
+                        deltaX: 0,
+                        deltaY: 0
+                    };
+                    this._activePointers.push(pointer);
+                });
+                // eslint-disable-next-line no-undef
+                this._domElement.ownerDocument.removeEventListener('touchmove', onTouchMove, {
+                    passive: false
+                });
+                this._domElement.ownerDocument.removeEventListener('touchend', onTouchEnd);
+                this._domElement.ownerDocument.addEventListener('touchmove', onTouchMove, {
+                    passive: false
+                });
+                this._domElement.ownerDocument.addEventListener('touchend', onTouchEnd);
+                startDragging(event);
+            };
+            const onPointerMove = (event)=>{
+                if (event.cancelable) event.preventDefault();
+                const pointerId = event.pointerId;
+                const pointer = this._findPointerById(pointerId);
+                if (!pointer) return;
+                pointer.clientX = event.clientX;
+                pointer.clientY = event.clientY;
+                pointer.deltaX = event.movementX;
+                pointer.deltaY = event.movementY;
+                if (event.pointerType === 'touch') switch(this._activePointers.length){
+                    case 1:
+                        this._state = this.touches.one;
+                        break;
+                    case 2:
+                        this._state = this.touches.two;
+                        break;
+                    case 3:
+                        this._state = this.touches.three;
+                        break;
+                }
+                else {
+                    this._state = 0;
+                    if ((event.buttons & MOUSE_BUTTON.LEFT) === MOUSE_BUTTON.LEFT) this._state = this._state | this.mouseButtons.left;
+                    if ((event.buttons & MOUSE_BUTTON.MIDDLE) === MOUSE_BUTTON.MIDDLE) this._state = this._state | this.mouseButtons.middle;
+                    if ((event.buttons & MOUSE_BUTTON.RIGHT) === MOUSE_BUTTON.RIGHT) this._state = this._state | this.mouseButtons.right;
+                }
+                dragging();
+            };
+            const onMouseMove = (event)=>{
+                const pointer = this._findPointerById(0);
+                if (!pointer) return;
+                pointer.clientX = event.clientX;
+                pointer.clientY = event.clientY;
+                pointer.deltaX = event.movementX;
+                pointer.deltaY = event.movementY;
+                this._state = 0;
+                if ((event.buttons & MOUSE_BUTTON.LEFT) === MOUSE_BUTTON.LEFT) this._state = this._state | this.mouseButtons.left;
+                if ((event.buttons & MOUSE_BUTTON.MIDDLE) === MOUSE_BUTTON.MIDDLE) this._state = this._state | this.mouseButtons.middle;
+                if ((event.buttons & MOUSE_BUTTON.RIGHT) === MOUSE_BUTTON.RIGHT) this._state = this._state | this.mouseButtons.right;
+                dragging();
+            };
+            const onTouchMove = (event)=>{
+                if (event.cancelable) event.preventDefault();
+                Array.prototype.forEach.call(event.changedTouches, (touch)=>{
+                    const pointerId = touch.identifier;
+                    const pointer = this._findPointerById(pointerId);
+                    if (!pointer) return;
+                    pointer.clientX = touch.clientX;
+                    pointer.clientY = touch.clientY;
+                // touch event does not have movementX and movementY.
+                });
+                dragging();
+            };
+            const onPointerUp = (event)=>{
+                const pointerId = event.pointerId;
+                const pointer = this._findPointerById(pointerId);
+                pointer && this._activePointers.splice(this._activePointers.indexOf(pointer), 1);
+                if (event.pointerType === 'touch') switch(this._activePointers.length){
+                    case 0:
+                        this._state = ACTION.NONE;
+                        break;
+                    case 1:
+                        this._state = this.touches.one;
+                        break;
+                    case 2:
+                        this._state = this.touches.two;
+                        break;
+                    case 3:
+                        this._state = this.touches.three;
+                        break;
+                }
+                else this._state = ACTION.NONE;
+                endDragging();
+            };
+            const onMouseUp = ()=>{
+                const pointer = this._findPointerById(0);
+                pointer && this._activePointers.splice(this._activePointers.indexOf(pointer), 1);
+                this._state = ACTION.NONE;
+                endDragging();
+            };
+            const onTouchEnd = (event)=>{
+                Array.prototype.forEach.call(event.changedTouches, (touch)=>{
+                    const pointerId = touch.identifier;
+                    const pointer = this._findPointerById(pointerId);
+                    pointer && this._activePointers.splice(this._activePointers.indexOf(pointer), 1);
+                });
+                switch(this._activePointers.length){
+                    case 0:
+                        this._state = ACTION.NONE;
+                        break;
+                    case 1:
+                        this._state = this.touches.one;
+                        break;
+                    case 2:
+                        this._state = this.touches.two;
+                        break;
+                    case 3:
+                        this._state = this.touches.three;
+                        break;
+                }
+                endDragging();
+            };
+            let lastScrollTimeStamp = -1;
+            const onMouseWheel = (event)=>{
+                if (!this._enabled || this.mouseButtons.wheel === ACTION.NONE) return;
+                event.preventDefault();
+                if (this.dollyToCursor || this.mouseButtons.wheel === ACTION.ROTATE || this.mouseButtons.wheel === ACTION.TRUCK) {
+                    const now = performance.now();
+                    // only need to fire this at scroll start.
+                    if (lastScrollTimeStamp - now < 1000) this._getClientRect(this._elementRect);
+                    lastScrollTimeStamp = now;
+                }
+                // Ref: https://github.com/cedricpinson/osgjs/blob/00e5a7e9d9206c06fdde0436e1d62ab7cb5ce853/sources/osgViewer/input/source/InputSourceMouse.js#L89-L103
+                const deltaYFactor = isMac ? -1 : -3;
+                const delta = event.deltaMode === 1 ? event.deltaY / deltaYFactor : event.deltaY / (deltaYFactor * 10);
+                const x = this.dollyToCursor ? (event.clientX - this._elementRect.x) / this._elementRect.width * 2 - 1 : 0;
+                const y = this.dollyToCursor ? (event.clientY - this._elementRect.y) / this._elementRect.height * -2 + 1 : 0;
+                switch(this.mouseButtons.wheel){
+                    case ACTION.ROTATE:
+                        this._rotateInternal(event.deltaX, event.deltaY);
+                        break;
+                    case ACTION.TRUCK:
+                        this._truckInternal(event.deltaX, event.deltaY, false);
+                        break;
+                    case ACTION.OFFSET:
+                        this._truckInternal(event.deltaX, event.deltaY, true);
+                        break;
+                    case ACTION.DOLLY:
+                        this._dollyInternal(-delta, x, y);
+                        break;
+                    case ACTION.ZOOM:
+                        this._zoomInternal(-delta, x, y);
+                        break;
+                }
+                this.dispatchEvent({
+                    type: 'control'
+                });
+            };
+            const onContextMenu = (event)=>{
+                if (!this._enabled) return;
+                event.preventDefault();
+            };
+            const startDragging = (event)=>{
+                if (!this._enabled) return;
+                extractClientCoordFromEvent(this._activePointers, _v2);
+                this._getClientRect(this._elementRect);
+                dragStartPosition.copy(_v2);
+                lastDragPosition.copy(_v2);
+                const isMultiTouch = this._activePointers.length >= 2;
+                if (isMultiTouch) {
+                    // 2 finger pinch
+                    const dx = _v2.x - this._activePointers[1].clientX;
+                    const dy = _v2.y - this._activePointers[1].clientY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    dollyStart.set(0, distance);
+                    // center coords of 2 finger truck
+                    const x = (this._activePointers[0].clientX + this._activePointers[1].clientX) * 0.5;
+                    const y = (this._activePointers[0].clientY + this._activePointers[1].clientY) * 0.5;
+                    lastDragPosition.set(x, y);
+                }
+                if ('touches' in event || 'pointerType' in event && event.pointerType === 'touch') switch(this._activePointers.length){
+                    case 1:
+                        this._state = this.touches.one;
+                        break;
+                    case 2:
+                        this._state = this.touches.two;
+                        break;
+                    case 3:
+                        this._state = this.touches.three;
+                        break;
+                }
+                else {
+                    this._state = 0;
+                    if ((event.buttons & MOUSE_BUTTON.LEFT) === MOUSE_BUTTON.LEFT) this._state = this._state | this.mouseButtons.left;
+                    if ((event.buttons & MOUSE_BUTTON.MIDDLE) === MOUSE_BUTTON.MIDDLE) this._state = this._state | this.mouseButtons.middle;
+                    if ((event.buttons & MOUSE_BUTTON.RIGHT) === MOUSE_BUTTON.RIGHT) this._state = this._state | this.mouseButtons.right;
+                }
+                this.dispatchEvent({
+                    type: 'controlstart'
+                });
+            };
+            const dragging = ()=>{
+                if (!this._enabled) return;
+                extractClientCoordFromEvent(this._activePointers, _v2);
+                // When pointer lock is enabled clientX, clientY, screenX, and screenY remain 0.
+                // If pointer lock is enabled, use the Delta directory, and assume active-pointer is not multiple.
+                const isPointerLockActive = this._domElement && document.pointerLockElement === this._domElement;
+                const deltaX = isPointerLockActive ? -this._activePointers[0].deltaX : lastDragPosition.x - _v2.x;
+                const deltaY = isPointerLockActive ? -this._activePointers[0].deltaY : lastDragPosition.y - _v2.y;
+                lastDragPosition.copy(_v2);
+                if ((this._state & ACTION.ROTATE) === ACTION.ROTATE || (this._state & ACTION.TOUCH_ROTATE) === ACTION.TOUCH_ROTATE) this._rotateInternal(deltaX, deltaY);
+                if ((this._state & ACTION.DOLLY) === ACTION.DOLLY || (this._state & ACTION.ZOOM) === ACTION.ZOOM) {
+                    const dollyX = this.dollyToCursor ? (dragStartPosition.x - this._elementRect.x) / this._elementRect.width * 2 - 1 : 0;
+                    const dollyY = this.dollyToCursor ? (dragStartPosition.y - this._elementRect.y) / this._elementRect.height * -2 + 1 : 0;
+                    this._state === ACTION.DOLLY ? this._dollyInternal(deltaY * TOUCH_DOLLY_FACTOR, dollyX, dollyY) : this._zoomInternal(deltaY * TOUCH_DOLLY_FACTOR, dollyX, dollyY);
+                }
+                if ((this._state & ACTION.TOUCH_DOLLY) === ACTION.TOUCH_DOLLY || (this._state & ACTION.TOUCH_ZOOM) === ACTION.TOUCH_ZOOM || (this._state & ACTION.TOUCH_DOLLY_TRUCK) === ACTION.TOUCH_DOLLY_TRUCK || (this._state & ACTION.TOUCH_ZOOM_TRUCK) === ACTION.TOUCH_ZOOM_TRUCK || (this._state & ACTION.TOUCH_DOLLY_OFFSET) === ACTION.TOUCH_DOLLY_OFFSET || (this._state & ACTION.TOUCH_ZOOM_OFFSET) === ACTION.TOUCH_ZOOM_OFFSET) {
+                    const dx = _v2.x - this._activePointers[1].clientX;
+                    const dy = _v2.y - this._activePointers[1].clientY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const dollyDelta = dollyStart.y - distance;
+                    dollyStart.set(0, distance);
+                    const dollyX = this.dollyToCursor ? (lastDragPosition.x - this._elementRect.x) / this._elementRect.width * 2 - 1 : 0;
+                    const dollyY = this.dollyToCursor ? (lastDragPosition.y - this._elementRect.y) / this._elementRect.height * -2 + 1 : 0;
+                    this._state === ACTION.TOUCH_DOLLY || this._state === ACTION.TOUCH_DOLLY_TRUCK || this._state === ACTION.TOUCH_DOLLY_OFFSET ? this._dollyInternal(dollyDelta * TOUCH_DOLLY_FACTOR, dollyX, dollyY) : this._zoomInternal(dollyDelta * TOUCH_DOLLY_FACTOR, dollyX, dollyY);
+                }
+                if ((this._state & ACTION.TRUCK) === ACTION.TRUCK || (this._state & ACTION.TOUCH_TRUCK) === ACTION.TOUCH_TRUCK || (this._state & ACTION.TOUCH_DOLLY_TRUCK) === ACTION.TOUCH_DOLLY_TRUCK || (this._state & ACTION.TOUCH_ZOOM_TRUCK) === ACTION.TOUCH_ZOOM_TRUCK) this._truckInternal(deltaX, deltaY, false);
+                if ((this._state & ACTION.OFFSET) === ACTION.OFFSET || (this._state & ACTION.TOUCH_OFFSET) === ACTION.TOUCH_OFFSET || (this._state & ACTION.TOUCH_DOLLY_OFFSET) === ACTION.TOUCH_DOLLY_OFFSET || (this._state & ACTION.TOUCH_ZOOM_OFFSET) === ACTION.TOUCH_ZOOM_OFFSET) this._truckInternal(deltaX, deltaY, true);
+                this.dispatchEvent({
+                    type: 'control'
+                });
+            };
+            const endDragging = ()=>{
+                extractClientCoordFromEvent(this._activePointers, _v2);
+                lastDragPosition.copy(_v2);
+                if (this._activePointers.length === 0) {
+                    // eslint-disable-next-line no-undef
+                    this._domElement.ownerDocument.removeEventListener('pointermove', onPointerMove, {
+                        passive: false
+                    });
+                    this._domElement.ownerDocument.removeEventListener('pointerup', onPointerUp);
+                    // eslint-disable-next-line no-undef
+                    this._domElement.ownerDocument.removeEventListener('touchmove', onTouchMove, {
+                        passive: false
+                    });
+                    this._domElement.ownerDocument.removeEventListener('touchend', onTouchEnd);
+                    this.dispatchEvent({
+                        type: 'controlend'
+                    });
+                }
+            };
+            this._domElement.addEventListener('pointerdown', onPointerDown);
+            isPointerEventsNotSupported && this._domElement.addEventListener('mousedown', onMouseDown);
+            isPointerEventsNotSupported && this._domElement.addEventListener('touchstart', onTouchStart);
+            this._domElement.addEventListener('pointercancel', onPointerUp);
+            this._domElement.addEventListener('wheel', onMouseWheel, {
+                passive: false
+            });
+            this._domElement.addEventListener('contextmenu', onContextMenu);
+            this._removeAllEventListeners = ()=>{
+                this._domElement.removeEventListener('pointerdown', onPointerDown);
+                this._domElement.removeEventListener('mousedown', onMouseDown);
+                this._domElement.removeEventListener('touchstart', onTouchStart);
+                this._domElement.removeEventListener('pointercancel', onPointerUp);
+                // https://developer.mozilla.org/en-US/docs/Web/API/EventTarget/removeEventListener#matching_event_listeners_for_removal
+                // > it's probably wise to use the same values used for the call to `addEventListener()` when calling `removeEventListener()`
+                // see https://github.com/microsoft/TypeScript/issues/32912#issuecomment-522142969
+                // eslint-disable-next-line no-undef
+                this._domElement.removeEventListener('wheel', onMouseWheel, {
+                    passive: false
+                });
+                this._domElement.removeEventListener('contextmenu', onContextMenu);
+                // eslint-disable-next-line no-undef
+                this._domElement.ownerDocument.removeEventListener('pointermove', onPointerMove, {
+                    passive: false
+                });
+                this._domElement.ownerDocument.removeEventListener('mousemove', onMouseMove);
+                // eslint-disable-next-line no-undef
+                this._domElement.ownerDocument.removeEventListener('touchmove', onTouchMove, {
+                    passive: false
+                });
+                this._domElement.ownerDocument.removeEventListener('pointerup', onPointerUp);
+                this._domElement.ownerDocument.removeEventListener('mouseup', onMouseUp);
+                this._domElement.ownerDocument.removeEventListener('touchend', onTouchEnd);
+            };
+            this.cancel = ()=>{
+                if (this._state === ACTION.NONE) return;
+                this._state = ACTION.NONE;
+                this._activePointers.length = 0;
+                endDragging();
+            };
+        }
+        this.update(0);
+    }
+    /**
+     * Injects THREE as the dependency. You can then proceed to use CameraControls.
+     *
+     * e.g
+     * ```javascript
+     * CameraControls.install( { THREE: THREE } );
+     * ```
+     *
+     * Note: If you do not wish to use enter three.js to reduce file size(tree-shaking for example), make a subset to install.
+     *
+     * ```js
+     * import {
+     * 	Vector2,
+     * 	Vector3,
+     * 	Vector4,
+     * 	Quaternion,
+     * 	Matrix4,
+     * 	Spherical,
+     * 	Box3,
+     * 	Sphere,
+     * 	Raycaster,
+     * 	MathUtils,
+     * } from 'three';
+     *
+     * const subsetOfTHREE = {
+     * 	Vector2   : Vector2,
+     * 	Vector3   : Vector3,
+     * 	Vector4   : Vector4,
+     * 	Quaternion: Quaternion,
+     * 	Matrix4   : Matrix4,
+     * 	Spherical : Spherical,
+     * 	Box3      : Box3,
+     * 	Sphere    : Sphere,
+     * 	Raycaster : Raycaster,
+     * 	MathUtils : {
+     * 		DEG2RAD: MathUtils.DEG2RAD,
+     * 		clamp: MathUtils.clamp,
+     * 	},
+     * };
+
+     * CameraControls.install( { THREE: subsetOfTHREE } );
+     * ```
+     * @category Statics
+     */ static install(libs) {
+        THREE = libs.THREE;
+        _ORIGIN = Object.freeze(new THREE.Vector3(0, 0, 0));
+        _AXIS_Y = Object.freeze(new THREE.Vector3(0, 1, 0));
+        _AXIS_Z = Object.freeze(new THREE.Vector3(0, 0, 1));
+        _v2 = new THREE.Vector2();
+        _v3A = new THREE.Vector3();
+        _v3B = new THREE.Vector3();
+        _v3C = new THREE.Vector3();
+        _xColumn = new THREE.Vector3();
+        _yColumn = new THREE.Vector3();
+        _zColumn = new THREE.Vector3();
+        _deltaTarget = new THREE.Vector3();
+        _deltaOffset = new THREE.Vector3();
+        _sphericalA = new THREE.Spherical();
+        _sphericalB = new THREE.Spherical();
+        _box3A = new THREE.Box3();
+        _box3B = new THREE.Box3();
+        _sphere = new THREE.Sphere();
+        _quaternionA = new THREE.Quaternion();
+        _quaternionB = new THREE.Quaternion();
+        _rotationMatrix = new THREE.Matrix4();
+        _raycaster = new THREE.Raycaster();
+    }
+    /**
+     * list all ACTIONs
+     * @category Statics
+     */ static get ACTION() {
+        return ACTION;
+    }
+    /**
+     * The camera to be controlled
+     * @category Properties
+     */ get camera() {
+        return this._camera;
+    }
+    set camera(camera) {
+        this._camera = camera;
+        this.updateCameraUp();
+        this._camera.updateProjectionMatrix();
+        this._updateNearPlaneCorners();
+        this._needsUpdate = true;
+    }
+    /**
+     * Whether or not the controls are enabled.
+     * `false` to disable user dragging/touch-move, but all methods works.
+     * @category Properties
+     */ get enabled() {
+        return this._enabled;
+    }
+    set enabled(enabled) {
+        this._enabled = enabled;
+        if (enabled) {
+            this._domElement.style.touchAction = 'none';
+            this._domElement.style.userSelect = 'none';
+            this._domElement.style.webkitUserSelect = 'none';
+        } else {
+            this.cancel();
+            this._domElement.style.touchAction = '';
+            this._domElement.style.userSelect = '';
+            this._domElement.style.webkitUserSelect = '';
+        }
+    }
+    /**
+     * Returns `true` if the controls are active updating.
+     * readonly value.
+     * @category Properties
+     */ get active() {
+        return !this._hasRested;
+    }
+    /**
+     * Getter for the current `ACTION`.
+     * readonly value.
+     * @category Properties
+     */ get currentAction() {
+        return this._state;
+    }
+    /**
+     * get/set Current distance.
+     * @category Properties
+     */ get distance() {
+        return this._spherical.radius;
+    }
+    set distance(distance) {
+        if (this._spherical.radius === distance && this._sphericalEnd.radius === distance) return;
+        this._spherical.radius = distance;
+        this._sphericalEnd.radius = distance;
+        this._needsUpdate = true;
+    }
+    // horizontal angle
+    /**
+     * get/set the azimuth angle (horizontal) in radians.
+     * Every 360 degrees turn is added to `.azimuthAngle` value, which is accumulative.
+     * @category Properties
+     */ get azimuthAngle() {
+        return this._spherical.theta;
+    }
+    set azimuthAngle(azimuthAngle) {
+        if (this._spherical.theta === azimuthAngle && this._sphericalEnd.theta === azimuthAngle) return;
+        this._spherical.theta = azimuthAngle;
+        this._sphericalEnd.theta = azimuthAngle;
+        this._needsUpdate = true;
+    }
+    // vertical angle
+    /**
+     * get/set the polar angle (vertical) in radians.
+     * @category Properties
+     */ get polarAngle() {
+        return this._spherical.phi;
+    }
+    set polarAngle(polarAngle) {
+        if (this._spherical.phi === polarAngle && this._sphericalEnd.phi === polarAngle) return;
+        this._spherical.phi = polarAngle;
+        this._sphericalEnd.phi = polarAngle;
+        this._needsUpdate = true;
+    }
+    /**
+     * Whether camera position should be enclosed in the boundary or not.
+     * @category Properties
+     */ get boundaryEnclosesCamera() {
+        return this._boundaryEnclosesCamera;
+    }
+    set boundaryEnclosesCamera(boundaryEnclosesCamera) {
+        this._boundaryEnclosesCamera = boundaryEnclosesCamera;
+        this._needsUpdate = true;
+    }
+    /**
+     * Adds the specified event listener.
+     * Applicable event types (which is `K`) are:
+     * | Event name          | Timing |
+     * | ------------------- | ------ |
+     * | `'controlstart'`    | When the user starts to control the camera via mouse / touches. ¹ |
+     * | `'control'`         | When the user controls the camera (dragging). |
+     * | `'controlend'`      | When the user ends to control the camera. ¹ |
+     * | `'transitionstart'` | When any kind of transition starts, either user control or using a method with `enableTransition = true` |
+     * | `'update'`          | When the camera position is updated. |
+     * | `'wake'`            | When the camera starts moving. |
+     * | `'rest'`            | When the camera movement is below `.restThreshold` ². |
+     * | `'sleep'`           | When the camera end moving. |
+     *
+     * 1. `mouseButtons.wheel` (Mouse wheel control) does not emit `'controlstart'` and `'controlend'`. `mouseButtons.wheel` uses scroll-event internally, and scroll-event happens intermittently. That means "start" and "end" cannot be detected.
+     * 2. Due to damping, `sleep` will usually fire a few seconds after the camera _appears_ to have stopped moving. If you want to do something (e.g. enable UI, perform another transition) at the point when the camera has stopped, you probably want the `rest` event. This can be fine tuned using the `.restThreshold` parameter. See the [Rest and Sleep Example](https://yomotsu.github.io/camera-controls/examples/rest-and-sleep.html).
+     *
+     * e.g.
+     * ```
+     * cameraControl.addEventListener( 'controlstart', myCallbackFunction );
+     * ```
+     * @param type event name
+     * @param listener handler function
+     * @category Methods
+     */ addEventListener(type, listener) {
+        super.addEventListener(type, listener);
+    }
+    /**
+     * Removes the specified event listener
+     * e.g.
+     * ```
+     * cameraControl.addEventListener( 'controlstart', myCallbackFunction );
+     * ```
+     * @param type event name
+     * @param listener handler function
+     * @category Methods
+     */ removeEventListener(type, listener) {
+        super.removeEventListener(type, listener);
+    }
+    /**
+     * Rotate azimuthal angle(horizontal) and polar angle(vertical).
+     * Every value is added to the current value.
+     * @param azimuthAngle Azimuth rotate angle. In radian.
+     * @param polarAngle Polar rotate angle. In radian.
+     * @param enableTransition Whether to move smoothly or immediately
+     * @category Methods
+     */ rotate(azimuthAngle, polarAngle, enableTransition = false) {
+        return this.rotateTo(this._sphericalEnd.theta + azimuthAngle, this._sphericalEnd.phi + polarAngle, enableTransition);
+    }
+    /**
+     * Rotate azimuthal angle(horizontal) to the given angle and keep the same polar angle(vertical) target.
+     *
+     * e.g.
+     * ```
+     * cameraControls.rotateAzimuthTo( 30 * THREE.MathUtils.DEG2RAD, true );
+     * ```
+     * @param azimuthAngle Azimuth rotate angle. In radian.
+     * @param enableTransition Whether to move smoothly or immediately
+     * @category Methods
+     */ rotateAzimuthTo(azimuthAngle, enableTransition = false) {
+        return this.rotateTo(azimuthAngle, this._sphericalEnd.phi, enableTransition);
+    }
+    /**
+     * Rotate polar angle(vertical) to the given angle and keep the same azimuthal angle(horizontal) target.
+     *
+     * e.g.
+     * ```
+     * cameraControls.rotatePolarTo( 30 * THREE.MathUtils.DEG2RAD, true );
+     * ```
+     * @param polarAngle Polar rotate angle. In radian.
+     * @param enableTransition Whether to move smoothly or immediately
+     * @category Methods
+     */ rotatePolarTo(polarAngle, enableTransition = false) {
+        return this.rotateTo(this._sphericalEnd.theta, polarAngle, enableTransition);
+    }
+    /**
+     * Rotate azimuthal angle(horizontal) and polar angle(vertical) to the given angle.
+     * Camera view will rotate over the orbit pivot absolutely:
+     *
+     * azimuthAngle
+     * ```
+     *       0º
+     *         \
+     * 90º -----+----- -90º
+     *           \
+     *           180º
+     * ```
+     * | direction | angle                  |
+     * | --------- | ---------------------- |
+     * | front     | 0º                     |
+     * | left      | 90º (`Math.PI / 2`)    |
+     * | right     | -90º (`- Math.PI / 2`) |
+     * | back      | 180º (`Math.PI`)       |
+     *
+     * polarAngle
+     * ```
+     *     180º
+     *      |
+     *      90º
+     *      |
+     *      0º
+     * ```
+     * | direction            | angle                  |
+     * | -------------------- | ---------------------- |
+     * | top/sky              | 180º (`Math.PI`)       |
+     * | horizontal from view | 90º (`Math.PI / 2`)    |
+     * | bottom/floor         | 0º                     |
+     *
+     * @param azimuthAngle Azimuth rotate angle to. In radian.
+     * @param polarAngle Polar rotate angle to. In radian.
+     * @param enableTransition  Whether to move smoothly or immediately
+     * @category Methods
+     */ rotateTo(azimuthAngle, polarAngle, enableTransition = false) {
+        const theta = THREE.MathUtils.clamp(azimuthAngle, this.minAzimuthAngle, this.maxAzimuthAngle);
+        const phi = THREE.MathUtils.clamp(polarAngle, this.minPolarAngle, this.maxPolarAngle);
+        this._sphericalEnd.theta = theta;
+        this._sphericalEnd.phi = phi;
+        this._sphericalEnd.makeSafe();
+        this._needsUpdate = true;
+        if (!enableTransition) {
+            this._spherical.theta = this._sphericalEnd.theta;
+            this._spherical.phi = this._sphericalEnd.phi;
+        }
+        const resolveImmediately = !enableTransition || approxEquals(this._spherical.theta, this._sphericalEnd.theta, this.restThreshold) && approxEquals(this._spherical.phi, this._sphericalEnd.phi, this.restThreshold);
+        return this._createOnRestPromise(resolveImmediately);
+    }
+    /**
+     * Dolly in/out camera position.
+     * @param distance Distance of dollyIn. Negative number for dollyOut.
+     * @param enableTransition Whether to move smoothly or immediately.
+     * @category Methods
+     */ dolly(distance, enableTransition = false) {
+        return this.dollyTo(this._sphericalEnd.radius - distance, enableTransition);
+    }
+    /**
+     * Dolly in/out camera position to given distance.
+     * @param distance Distance of dolly.
+     * @param enableTransition Whether to move smoothly or immediately.
+     * @category Methods
+     */ dollyTo(distance, enableTransition = false) {
+        const lastRadius = this._sphericalEnd.radius;
+        const newRadius = THREE.MathUtils.clamp(distance, this.minDistance, this.maxDistance);
+        const hasCollider = this.colliderMeshes.length >= 1;
+        if (hasCollider) {
+            const maxDistanceByCollisionTest = this._collisionTest();
+            const isCollided = approxEquals(maxDistanceByCollisionTest, this._spherical.radius);
+            const isDollyIn = lastRadius > newRadius;
+            if (!isDollyIn && isCollided) return Promise.resolve();
+            this._sphericalEnd.radius = Math.min(newRadius, maxDistanceByCollisionTest);
+        } else this._sphericalEnd.radius = newRadius;
+        this._needsUpdate = true;
+        if (!enableTransition) this._spherical.radius = this._sphericalEnd.radius;
+        const resolveImmediately = !enableTransition || approxEquals(this._spherical.radius, this._sphericalEnd.radius, this.restThreshold);
+        return this._createOnRestPromise(resolveImmediately);
+    }
+    /**
+     * Zoom in/out camera. The value is added to camera zoom.
+     * Limits set with `.minZoom` and `.maxZoom`
+     * @param zoomStep zoom scale
+     * @param enableTransition Whether to move smoothly or immediately
+     * @category Methods
+     */ zoom(zoomStep, enableTransition = false) {
+        return this.zoomTo(this._zoomEnd + zoomStep, enableTransition);
+    }
+    /**
+     * Zoom in/out camera to given scale. The value overwrites camera zoom.
+     * Limits set with .minZoom and .maxZoom
+     * @param zoom
+     * @param enableTransition
+     * @category Methods
+     */ zoomTo(zoom, enableTransition = false) {
+        this._zoomEnd = THREE.MathUtils.clamp(zoom, this.minZoom, this.maxZoom);
+        this._needsUpdate = true;
+        if (!enableTransition) this._zoom = this._zoomEnd;
+        const resolveImmediately = !enableTransition || approxEquals(this._zoom, this._zoomEnd, this.restThreshold);
+        return this._createOnRestPromise(resolveImmediately);
+    }
+    /**
+     * @deprecated `pan()` has been renamed to `truck()`
+     * @category Methods
+     */ pan(x, y, enableTransition = false) {
+        console.warn('`pan` has been renamed to `truck`');
+        return this.truck(x, y, enableTransition);
+    }
+    /**
+     * Truck and pedestal camera using current azimuthal angle
+     * @param x Horizontal translate amount
+     * @param y Vertical translate amount
+     * @param enableTransition Whether to move smoothly or immediately
+     * @category Methods
+     */ truck(x, y, enableTransition = false) {
+        this._camera.updateMatrix();
+        _xColumn.setFromMatrixColumn(this._camera.matrix, 0);
+        _yColumn.setFromMatrixColumn(this._camera.matrix, 1);
+        _xColumn.multiplyScalar(x);
+        _yColumn.multiplyScalar(-y);
+        const offset = _v3A.copy(_xColumn).add(_yColumn);
+        const to = _v3B.copy(this._targetEnd).add(offset);
+        return this.moveTo(to.x, to.y, to.z, enableTransition);
+    }
+    /**
+     * Move forward / backward.
+     * @param distance Amount to move forward / backward. Negative value to move backward
+     * @param enableTransition Whether to move smoothly or immediately
+     * @category Methods
+     */ forward(distance, enableTransition = false) {
+        _v3A.setFromMatrixColumn(this._camera.matrix, 0);
+        _v3A.crossVectors(this._camera.up, _v3A);
+        _v3A.multiplyScalar(distance);
+        const to = _v3B.copy(this._targetEnd).add(_v3A);
+        return this.moveTo(to.x, to.y, to.z, enableTransition);
+    }
+    /**
+     * Move target position to given point.
+     * @param x x coord to move center position
+     * @param y y coord to move center position
+     * @param z z coord to move center position
+     * @param enableTransition Whether to move smoothly or immediately
+     * @category Methods
+     */ moveTo(x, y, z, enableTransition = false) {
+        const offset = _v3A.set(x, y, z).sub(this._targetEnd);
+        this._encloseToBoundary(this._targetEnd, offset, this.boundaryFriction);
+        this._needsUpdate = true;
+        if (!enableTransition) this._target.copy(this._targetEnd);
+        const resolveImmediately = !enableTransition || approxEquals(this._target.x, this._targetEnd.x, this.restThreshold) && approxEquals(this._target.y, this._targetEnd.y, this.restThreshold) && approxEquals(this._target.z, this._targetEnd.z, this.restThreshold);
+        return this._createOnRestPromise(resolveImmediately);
+    }
+    /**
+     * Fit the viewport to the box or the bounding box of the object, using the nearest axis. paddings are in unit.
+     * set `cover: true` to fill enter screen.
+     * e.g.
+     * ```
+     * cameraControls.fitToBox( myMesh );
+     * ```
+     * @param box3OrObject Axis aligned bounding box to fit the view.
+     * @param enableTransition Whether to move smoothly or immediately.
+     * @param options | `<object>` { cover: boolean, paddingTop: number, paddingLeft: number, paddingBottom: number, paddingRight: number }
+     * @returns Transition end promise
+     * @category Methods
+     */ fitToBox(box3OrObject, enableTransition, { cover =false , paddingLeft =0 , paddingRight =0 , paddingBottom =0 , paddingTop =0  } = {}) {
+        const promises = [];
+        const aabb = box3OrObject.isBox3 ? _box3A.copy(box3OrObject) : _box3A.setFromObject(box3OrObject);
+        if (aabb.isEmpty()) {
+            console.warn('camera-controls: fitTo() cannot be used with an empty box. Aborting');
+            Promise.resolve();
+        }
+        // round to closest axis ( forward | backward | right | left | top | bottom )
+        const theta = roundToStep(this._sphericalEnd.theta, PI_HALF);
+        const phi = roundToStep(this._sphericalEnd.phi, PI_HALF);
+        promises.push(this.rotateTo(theta, phi, enableTransition));
+        const normal = _v3A.setFromSpherical(this._sphericalEnd).normalize();
+        const rotation = _quaternionA.setFromUnitVectors(normal, _AXIS_Z).multiply(this._yAxisUpSpaceInverse);
+        const viewFromPolar = approxEquals(Math.abs(normal.y), 1);
+        if (viewFromPolar) rotation.multiply(_quaternionB.setFromAxisAngle(_AXIS_Y, theta));
+        // make oriented bounding box
+        const bb = _box3B.makeEmpty();
+        // left bottom back corner
+        _v3B.copy(aabb.min).applyQuaternion(rotation);
+        bb.expandByPoint(_v3B);
+        // right bottom back corner
+        _v3B.copy(aabb.min).setX(aabb.max.x).applyQuaternion(rotation);
+        bb.expandByPoint(_v3B);
+        // left top back corner
+        _v3B.copy(aabb.min).setY(aabb.max.y).applyQuaternion(rotation);
+        bb.expandByPoint(_v3B);
+        // right top back corner
+        _v3B.copy(aabb.max).setZ(aabb.min.z).applyQuaternion(rotation);
+        bb.expandByPoint(_v3B);
+        // left bottom front corner
+        _v3B.copy(aabb.min).setZ(aabb.max.z).applyQuaternion(rotation);
+        bb.expandByPoint(_v3B);
+        // right bottom front corner
+        _v3B.copy(aabb.max).setY(aabb.min.y).applyQuaternion(rotation);
+        bb.expandByPoint(_v3B);
+        // left top front corner
+        _v3B.copy(aabb.max).setX(aabb.min.x).applyQuaternion(rotation);
+        bb.expandByPoint(_v3B);
+        // right top front corner
+        _v3B.copy(aabb.max).applyQuaternion(rotation);
+        bb.expandByPoint(_v3B);
+        // add padding
+        bb.min.x -= paddingLeft;
+        bb.min.y -= paddingBottom;
+        bb.max.x += paddingRight;
+        bb.max.y += paddingTop;
+        rotation.setFromUnitVectors(_AXIS_Z, normal).multiply(this._yAxisUpSpace);
+        const bbSize = bb.getSize(_v3A);
+        const center = bb.getCenter(_v3B).applyQuaternion(rotation);
+        if (isPerspectiveCamera(this._camera)) {
+            const distance = this.getDistanceToFitBox(bbSize.x, bbSize.y, bbSize.z, cover);
+            promises.push(this.moveTo(center.x, center.y, center.z, enableTransition));
+            promises.push(this.dollyTo(distance, enableTransition));
+            promises.push(this.setFocalOffset(0, 0, 0, enableTransition));
+        } else if (isOrthographicCamera(this._camera)) {
+            const camera = this._camera;
+            const width = camera.right - camera.left;
+            const height = camera.top - camera.bottom;
+            const zoom = cover ? Math.max(width / bbSize.x, height / bbSize.y) : Math.min(width / bbSize.x, height / bbSize.y);
+            promises.push(this.moveTo(center.x, center.y, center.z, enableTransition));
+            promises.push(this.zoomTo(zoom, enableTransition));
+            promises.push(this.setFocalOffset(0, 0, 0, enableTransition));
+        }
+        return Promise.all(promises);
+    }
+    /**
+     * Fit the viewport to the sphere or the bounding sphere of the object.
+     * @param sphereOrMesh
+     * @param enableTransition
+     * @category Methods
+     */ fitToSphere(sphereOrMesh, enableTransition) {
+        const promises = [];
+        const isSphere = sphereOrMesh instanceof THREE.Sphere;
+        const boundingSphere = isSphere ? _sphere.copy(sphereOrMesh) : createBoundingSphere(sphereOrMesh, _sphere);
+        promises.push(this.moveTo(boundingSphere.center.x, boundingSphere.center.y, boundingSphere.center.z, enableTransition));
+        if (isPerspectiveCamera(this._camera)) {
+            const distanceToFit = this.getDistanceToFitSphere(boundingSphere.radius);
+            promises.push(this.dollyTo(distanceToFit, enableTransition));
+        } else if (isOrthographicCamera(this._camera)) {
+            const width = this._camera.right - this._camera.left;
+            const height = this._camera.top - this._camera.bottom;
+            const diameter = 2 * boundingSphere.radius;
+            const zoom = Math.min(width / diameter, height / diameter);
+            promises.push(this.zoomTo(zoom, enableTransition));
+        }
+        promises.push(this.setFocalOffset(0, 0, 0, enableTransition));
+        return Promise.all(promises);
+    }
+    /**
+     * Make an orbit with given points.
+     * @param positionX
+     * @param positionY
+     * @param positionZ
+     * @param targetX
+     * @param targetY
+     * @param targetZ
+     * @param enableTransition
+     * @category Methods
+     */ setLookAt(positionX, positionY, positionZ, targetX, targetY, targetZ, enableTransition = false) {
+        const target = _v3B.set(targetX, targetY, targetZ);
+        const position = _v3A.set(positionX, positionY, positionZ);
+        this._targetEnd.copy(target);
+        this._sphericalEnd.setFromVector3(position.sub(target).applyQuaternion(this._yAxisUpSpace));
+        this.normalizeRotations();
+        this._needsUpdate = true;
+        if (!enableTransition) {
+            this._target.copy(this._targetEnd);
+            this._spherical.copy(this._sphericalEnd);
+        }
+        const resolveImmediately = !enableTransition || approxEquals(this._target.x, this._targetEnd.x, this.restThreshold) && approxEquals(this._target.y, this._targetEnd.y, this.restThreshold) && approxEquals(this._target.z, this._targetEnd.z, this.restThreshold) && approxEquals(this._spherical.theta, this._sphericalEnd.theta, this.restThreshold) && approxEquals(this._spherical.phi, this._sphericalEnd.phi, this.restThreshold) && approxEquals(this._spherical.radius, this._sphericalEnd.radius, this.restThreshold);
+        return this._createOnRestPromise(resolveImmediately);
+    }
+    /**
+     * Similar to setLookAt, but it interpolates between two states.
+     * @param positionAX
+     * @param positionAY
+     * @param positionAZ
+     * @param targetAX
+     * @param targetAY
+     * @param targetAZ
+     * @param positionBX
+     * @param positionBY
+     * @param positionBZ
+     * @param targetBX
+     * @param targetBY
+     * @param targetBZ
+     * @param t
+     * @param enableTransition
+     * @category Methods
+     */ lerpLookAt(positionAX, positionAY, positionAZ, targetAX, targetAY, targetAZ, positionBX, positionBY, positionBZ, targetBX, targetBY, targetBZ, t, enableTransition = false) {
+        const targetA = _v3A.set(targetAX, targetAY, targetAZ);
+        const positionA = _v3B.set(positionAX, positionAY, positionAZ);
+        _sphericalA.setFromVector3(positionA.sub(targetA).applyQuaternion(this._yAxisUpSpace));
+        const targetB = _v3C.set(targetBX, targetBY, targetBZ);
+        const positionB = _v3B.set(positionBX, positionBY, positionBZ);
+        _sphericalB.setFromVector3(positionB.sub(targetB).applyQuaternion(this._yAxisUpSpace));
+        this._targetEnd.copy(targetA.lerp(targetB, t)); // tricky
+        const deltaTheta = _sphericalB.theta - _sphericalA.theta;
+        const deltaPhi = _sphericalB.phi - _sphericalA.phi;
+        const deltaRadius = _sphericalB.radius - _sphericalA.radius;
+        this._sphericalEnd.set(_sphericalA.radius + deltaRadius * t, _sphericalA.phi + deltaPhi * t, _sphericalA.theta + deltaTheta * t);
+        this.normalizeRotations();
+        this._needsUpdate = true;
+        if (!enableTransition) {
+            this._target.copy(this._targetEnd);
+            this._spherical.copy(this._sphericalEnd);
+        }
+        const resolveImmediately = !enableTransition || approxEquals(this._target.x, this._targetEnd.x, this.restThreshold) && approxEquals(this._target.y, this._targetEnd.y, this.restThreshold) && approxEquals(this._target.z, this._targetEnd.z, this.restThreshold) && approxEquals(this._spherical.theta, this._sphericalEnd.theta, this.restThreshold) && approxEquals(this._spherical.phi, this._sphericalEnd.phi, this.restThreshold) && approxEquals(this._spherical.radius, this._sphericalEnd.radius, this.restThreshold);
+        return this._createOnRestPromise(resolveImmediately);
+    }
+    /**
+     * setLookAt without target, keep gazing at the current target
+     * @param positionX
+     * @param positionY
+     * @param positionZ
+     * @param enableTransition
+     * @category Methods
+     */ setPosition(positionX, positionY, positionZ, enableTransition = false) {
+        return this.setLookAt(positionX, positionY, positionZ, this._targetEnd.x, this._targetEnd.y, this._targetEnd.z, enableTransition);
+    }
+    /**
+     * setLookAt without position, Stay still at the position.
+     * @param targetX
+     * @param targetY
+     * @param targetZ
+     * @param enableTransition
+     * @category Methods
+     */ setTarget(targetX, targetY, targetZ, enableTransition = false) {
+        const pos = this.getPosition(_v3A);
+        return this.setLookAt(pos.x, pos.y, pos.z, targetX, targetY, targetZ, enableTransition);
+    }
+    /**
+     * Set focal offset using the screen parallel coordinates. z doesn't affect in Orthographic as with Dolly.
+     * @param x
+     * @param y
+     * @param z
+     * @param enableTransition
+     * @category Methods
+     */ setFocalOffset(x, y, z, enableTransition = false) {
+        this._focalOffsetEnd.set(x, y, z);
+        this._needsUpdate = true;
+        if (!enableTransition) this._focalOffset.copy(this._focalOffsetEnd);
+        const resolveImmediately = !enableTransition || approxEquals(this._focalOffset.x, this._focalOffsetEnd.x, this.restThreshold) && approxEquals(this._focalOffset.y, this._focalOffsetEnd.y, this.restThreshold) && approxEquals(this._focalOffset.z, this._focalOffsetEnd.z, this.restThreshold);
+        return this._createOnRestPromise(resolveImmediately);
+    }
+    /**
+     * Set orbit point without moving the camera.
+     * @param targetX
+     * @param targetY
+     * @param targetZ
+     * @category Methods
+     */ setOrbitPoint(targetX, targetY, targetZ) {
+        _xColumn.setFromMatrixColumn(this._camera.matrixWorldInverse, 0);
+        _yColumn.setFromMatrixColumn(this._camera.matrixWorldInverse, 1);
+        _zColumn.setFromMatrixColumn(this._camera.matrixWorldInverse, 2);
+        const position = _v3A.set(targetX, targetY, targetZ);
+        const distance = position.distanceTo(this._camera.position);
+        const cameraToPoint = position.sub(this._camera.position);
+        _xColumn.multiplyScalar(cameraToPoint.x);
+        _yColumn.multiplyScalar(cameraToPoint.y);
+        _zColumn.multiplyScalar(cameraToPoint.z);
+        _v3A.copy(_xColumn).add(_yColumn).add(_zColumn);
+        _v3A.z = _v3A.z + distance;
+        this.dollyTo(distance, false);
+        this.setFocalOffset(-_v3A.x, _v3A.y, -_v3A.z, false);
+        this.moveTo(targetX, targetY, targetZ, false);
+    }
+    /**
+     * Set the boundary box that encloses the target of the camera. box3 is in THREE.Box3
+     * @param box3
+     * @category Methods
+     */ setBoundary(box3) {
+        if (!box3) {
+            this._boundary.min.set(-Infinity, -Infinity, -Infinity);
+            this._boundary.max.set(Infinity, Infinity, Infinity);
+            this._needsUpdate = true;
+            return;
+        }
+        this._boundary.copy(box3);
+        this._boundary.clampPoint(this._targetEnd, this._targetEnd);
+        this._needsUpdate = true;
+    }
+    /**
+     * Set (or unset) the current viewport.
+     * Set this when you want to use renderer viewport and .dollyToCursor feature at the same time.
+     * @param viewportOrX
+     * @param y
+     * @param width
+     * @param height
+     * @category Methods
+     */ setViewport(viewportOrX, y, width, height) {
+        if (viewportOrX === null) {
+            this._viewport = null;
+            return;
+        }
+        this._viewport = this._viewport || new THREE.Vector4();
+        if (typeof viewportOrX === 'number') this._viewport.set(viewportOrX, y, width, height);
+        else this._viewport.copy(viewportOrX);
+    }
+    /**
+     * Calculate the distance to fit the box.
+     * @param width box width
+     * @param height box height
+     * @param depth box depth
+     * @returns distance
+     * @category Methods
+     */ getDistanceToFitBox(width, height, depth, cover = false) {
+        if (notSupportedInOrthographicCamera(this._camera, 'getDistanceToFitBox')) return this._spherical.radius;
+        const boundingRectAspect = width / height;
+        const fov = this._camera.getEffectiveFOV() * THREE.MathUtils.DEG2RAD;
+        const aspect = this._camera.aspect;
+        const heightToFit = (cover ? boundingRectAspect > aspect : boundingRectAspect < aspect) ? height : width / aspect;
+        return heightToFit * 0.5 / Math.tan(fov * 0.5) + depth * 0.5;
+    }
+    /**
+     * Calculate the distance to fit the sphere.
+     * @param radius sphere radius
+     * @returns distance
+     * @category Methods
+     */ getDistanceToFitSphere(radius) {
+        if (notSupportedInOrthographicCamera(this._camera, 'getDistanceToFitSphere')) return this._spherical.radius;
+        // https://stackoverflow.com/a/44849975
+        const vFOV = this._camera.getEffectiveFOV() * THREE.MathUtils.DEG2RAD;
+        const hFOV = Math.atan(Math.tan(vFOV * 0.5) * this._camera.aspect) * 2;
+        const fov = 1 < this._camera.aspect ? vFOV : hFOV;
+        return radius / Math.sin(fov * 0.5);
+    }
+    /**
+     * Returns its current gazing target, which is the center position of the orbit.
+     * @param out current gazing target
+     * @category Methods
+     */ getTarget(out) {
+        const _out = !!out && out.isVector3 ? out : new THREE.Vector3();
+        return _out.copy(this._targetEnd);
+    }
+    /**
+     * Returns its current position.
+     * @param out current position
+     * @category Methods
+     */ getPosition(out) {
+        const _out = !!out && out.isVector3 ? out : new THREE.Vector3();
+        return _out.setFromSpherical(this._sphericalEnd).applyQuaternion(this._yAxisUpSpaceInverse).add(this._targetEnd);
+    }
+    /**
+     * Returns its current focal offset, which is how much the camera appears to be translated in screen parallel coordinates.
+     * @param out current focal offset
+     * @category Methods
+     */ getFocalOffset(out) {
+        const _out = !!out && out.isVector3 ? out : new THREE.Vector3();
+        return _out.copy(this._focalOffsetEnd);
+    }
+    /**
+     * Normalize camera azimuth angle rotation between 0 and 360 degrees.
+     * @category Methods
+     */ normalizeRotations() {
+        this._sphericalEnd.theta = this._sphericalEnd.theta % PI_2;
+        if (this._sphericalEnd.theta < 0) this._sphericalEnd.theta += PI_2;
+        this._spherical.theta += PI_2 * Math.round((this._sphericalEnd.theta - this._spherical.theta) / PI_2);
+    }
+    /**
+     * Reset all rotation and position to defaults.
+     * @param enableTransition
+     * @category Methods
+     */ reset(enableTransition = false) {
+        const promises = [
+            this.setLookAt(this._position0.x, this._position0.y, this._position0.z, this._target0.x, this._target0.y, this._target0.z, enableTransition),
+            this.setFocalOffset(this._focalOffset0.x, this._focalOffset0.y, this._focalOffset0.z, enableTransition),
+            this.zoomTo(this._zoom0, enableTransition), 
+        ];
+        return Promise.all(promises);
+    }
+    /**
+     * Set current camera position as the default position.
+     * @category Methods
+     */ saveState() {
+        this._target0.copy(this._target);
+        this._position0.copy(this._camera.position);
+        this._zoom0 = this._zoom;
+    }
+    /**
+     * Sync camera-up direction.
+     * When camera-up vector is changed, `.updateCameraUp()` must be called.
+     * @category Methods
+     */ updateCameraUp() {
+        this._yAxisUpSpace.setFromUnitVectors(this._camera.up, _AXIS_Y);
+        quatInvertCompat(this._yAxisUpSpaceInverse.copy(this._yAxisUpSpace));
+    }
+    /**
+     * Update camera position and directions.
+     * This should be called in your tick loop every time, and returns true if re-rendering is needed.
+     * @param delta
+     * @returns updated
+     * @category Methods
+     */ update(delta) {
+        const dampingFactor = this._state === ACTION.NONE ? this.dampingFactor : this.draggingDampingFactor;
+        // The original THREE.OrbitControls assume 60 FPS fixed and does NOT rely on delta time.
+        // (that must be a problem of the original one though)
+        // To to emulate the speed of the original one under 60 FPS, multiply `60` to delta,
+        // but ours are more flexible to any FPS unlike the original.
+        const lerpRatio = Math.min(dampingFactor * delta * 60, 1);
+        const deltaTheta = this._sphericalEnd.theta - this._spherical.theta;
+        const deltaPhi = this._sphericalEnd.phi - this._spherical.phi;
+        const deltaRadius = this._sphericalEnd.radius - this._spherical.radius;
+        const deltaTarget = _deltaTarget.subVectors(this._targetEnd, this._target);
+        const deltaOffset = _deltaOffset.subVectors(this._focalOffsetEnd, this._focalOffset);
+        if (!approxZero(deltaTheta) || !approxZero(deltaPhi) || !approxZero(deltaRadius) || !approxZero(deltaTarget.x) || !approxZero(deltaTarget.y) || !approxZero(deltaTarget.z) || !approxZero(deltaOffset.x) || !approxZero(deltaOffset.y) || !approxZero(deltaOffset.z)) {
+            this._spherical.set(this._spherical.radius + deltaRadius * lerpRatio, this._spherical.phi + deltaPhi * lerpRatio, this._spherical.theta + deltaTheta * lerpRatio);
+            this._target.add(deltaTarget.multiplyScalar(lerpRatio));
+            this._focalOffset.add(deltaOffset.multiplyScalar(lerpRatio));
+            this._needsUpdate = true;
+        } else {
+            this._spherical.copy(this._sphericalEnd);
+            this._target.copy(this._targetEnd);
+            this._focalOffset.copy(this._focalOffsetEnd);
+        }
+        if (this._dollyControlAmount !== 0) {
+            if (isPerspectiveCamera(this._camera)) {
+                const camera = this._camera;
+                const direction = _v3A.setFromSpherical(this._sphericalEnd).applyQuaternion(this._yAxisUpSpaceInverse).normalize().negate();
+                const planeX = _v3B.copy(direction).cross(camera.up).normalize();
+                if (planeX.lengthSq() === 0) planeX.x = 1;
+                const planeY = _v3C.crossVectors(planeX, direction);
+                const worldToScreen = this._sphericalEnd.radius * Math.tan(camera.getEffectiveFOV() * THREE.MathUtils.DEG2RAD * 0.5);
+                const prevRadius = this._sphericalEnd.radius - this._dollyControlAmount;
+                const lerpRatio = (prevRadius - this._sphericalEnd.radius) / this._sphericalEnd.radius;
+                const cursor = _v3A.copy(this._targetEnd).add(planeX.multiplyScalar(this._dollyControlCoord.x * worldToScreen * camera.aspect)).add(planeY.multiplyScalar(this._dollyControlCoord.y * worldToScreen));
+                this._targetEnd.lerp(cursor, lerpRatio);
+                this._target.copy(this._targetEnd);
+            } else if (isOrthographicCamera(this._camera)) {
+                const camera = this._camera;
+                const worldPosition = _v3A.set(this._dollyControlCoord.x, this._dollyControlCoord.y, (camera.near + camera.far) / (camera.near - camera.far)).unproject(camera);
+                const quaternion = _v3B.set(0, 0, -1).applyQuaternion(camera.quaternion);
+                const divisor = quaternion.dot(camera.up);
+                const distance = approxZero(divisor) ? -worldPosition.dot(camera.up) : -worldPosition.dot(camera.up) / divisor;
+                const cursor = _v3C.copy(worldPosition).add(quaternion.multiplyScalar(distance));
+                this._targetEnd.lerp(cursor, 1 - camera.zoom / this._dollyControlAmount);
+                this._target.copy(this._targetEnd);
+            }
+            this._dollyControlAmount = 0;
+        }
+        const maxDistance = this._collisionTest();
+        this._spherical.radius = Math.min(this._spherical.radius, maxDistance);
+        // decompose spherical to the camera position
+        this._spherical.makeSafe();
+        this._camera.position.setFromSpherical(this._spherical).applyQuaternion(this._yAxisUpSpaceInverse).add(this._target);
+        this._camera.lookAt(this._target);
+        // set offset after the orbit movement
+        const affectOffset = !approxZero(this._focalOffset.x) || !approxZero(this._focalOffset.y) || !approxZero(this._focalOffset.z);
+        if (affectOffset) {
+            this._camera.updateMatrix();
+            _xColumn.setFromMatrixColumn(this._camera.matrix, 0);
+            _yColumn.setFromMatrixColumn(this._camera.matrix, 1);
+            _zColumn.setFromMatrixColumn(this._camera.matrix, 2);
+            _xColumn.multiplyScalar(this._focalOffset.x);
+            _yColumn.multiplyScalar(-this._focalOffset.y);
+            _zColumn.multiplyScalar(this._focalOffset.z); // notice: z-offset will not affect in Orthographic.
+            _v3A.copy(_xColumn).add(_yColumn).add(_zColumn);
+            this._camera.position.add(_v3A);
+        }
+        if (this._boundaryEnclosesCamera) this._encloseToBoundary(this._camera.position.copy(this._target), _v3A.setFromSpherical(this._spherical).applyQuaternion(this._yAxisUpSpaceInverse), 1);
+        // zoom
+        const deltaZoom = this._zoomEnd - this._zoom;
+        this._zoom += deltaZoom * lerpRatio;
+        if (this._camera.zoom !== this._zoom) {
+            if (approxZero(deltaZoom)) this._zoom = this._zoomEnd;
+            this._camera.zoom = this._zoom;
+            this._camera.updateProjectionMatrix();
+            this._updateNearPlaneCorners();
+            this._needsUpdate = true;
+        }
+        const updated = this._needsUpdate;
+        if (updated && !this._updatedLastTime) {
+            this._hasRested = false;
+            this.dispatchEvent({
+                type: 'wake'
+            });
+            this.dispatchEvent({
+                type: 'update'
+            });
+        } else if (updated) {
+            this.dispatchEvent({
+                type: 'update'
+            });
+            if (approxZero(deltaTheta, this.restThreshold) && approxZero(deltaPhi, this.restThreshold) && approxZero(deltaRadius, this.restThreshold) && approxZero(deltaTarget.x, this.restThreshold) && approxZero(deltaTarget.y, this.restThreshold) && approxZero(deltaTarget.z, this.restThreshold) && approxZero(deltaOffset.x, this.restThreshold) && approxZero(deltaOffset.y, this.restThreshold) && approxZero(deltaOffset.z, this.restThreshold) && approxZero(deltaZoom, this.restThreshold) && !this._hasRested) {
+                this._hasRested = true;
+                this.dispatchEvent({
+                    type: 'rest'
+                });
+            }
+        } else if (!updated && this._updatedLastTime) this.dispatchEvent({
+            type: 'sleep'
+        });
+        this._updatedLastTime = updated;
+        this._needsUpdate = false;
+        return updated;
+    }
+    /**
+     * Get all state in JSON string
+     * @category Methods
+     */ toJSON() {
+        return JSON.stringify({
+            enabled: this._enabled,
+            minDistance: this.minDistance,
+            maxDistance: infinityToMaxNumber(this.maxDistance),
+            minZoom: this.minZoom,
+            maxZoom: infinityToMaxNumber(this.maxZoom),
+            minPolarAngle: this.minPolarAngle,
+            maxPolarAngle: infinityToMaxNumber(this.maxPolarAngle),
+            minAzimuthAngle: infinityToMaxNumber(this.minAzimuthAngle),
+            maxAzimuthAngle: infinityToMaxNumber(this.maxAzimuthAngle),
+            dampingFactor: this.dampingFactor,
+            draggingDampingFactor: this.draggingDampingFactor,
+            dollySpeed: this.dollySpeed,
+            truckSpeed: this.truckSpeed,
+            dollyToCursor: this.dollyToCursor,
+            verticalDragToForward: this.verticalDragToForward,
+            target: this._targetEnd.toArray(),
+            position: _v3A.setFromSpherical(this._sphericalEnd).add(this._targetEnd).toArray(),
+            zoom: this._zoomEnd,
+            focalOffset: this._focalOffsetEnd.toArray(),
+            target0: this._target0.toArray(),
+            position0: this._position0.toArray(),
+            zoom0: this._zoom0,
+            focalOffset0: this._focalOffset0.toArray()
+        });
+    }
+    /**
+     * Reproduce the control state with JSON. enableTransition is where anim or not in a boolean.
+     * @param json
+     * @param enableTransition
+     * @category Methods
+     */ fromJSON(json, enableTransition = false) {
+        const obj = JSON.parse(json);
+        const position = _v3A.fromArray(obj.position);
+        this.enabled = obj.enabled;
+        this.minDistance = obj.minDistance;
+        this.maxDistance = maxNumberToInfinity(obj.maxDistance);
+        this.minZoom = obj.minZoom;
+        this.maxZoom = maxNumberToInfinity(obj.maxZoom);
+        this.minPolarAngle = obj.minPolarAngle;
+        this.maxPolarAngle = maxNumberToInfinity(obj.maxPolarAngle);
+        this.minAzimuthAngle = maxNumberToInfinity(obj.minAzimuthAngle);
+        this.maxAzimuthAngle = maxNumberToInfinity(obj.maxAzimuthAngle);
+        this.dampingFactor = obj.dampingFactor;
+        this.draggingDampingFactor = obj.draggingDampingFactor;
+        this.dollySpeed = obj.dollySpeed;
+        this.truckSpeed = obj.truckSpeed;
+        this.dollyToCursor = obj.dollyToCursor;
+        this.verticalDragToForward = obj.verticalDragToForward;
+        this._target0.fromArray(obj.target0);
+        this._position0.fromArray(obj.position0);
+        this._zoom0 = obj.zoom0;
+        this._focalOffset0.fromArray(obj.focalOffset0);
+        this.moveTo(obj.target[0], obj.target[1], obj.target[2], enableTransition);
+        _sphericalA.setFromVector3(position.sub(this._targetEnd).applyQuaternion(this._yAxisUpSpace));
+        this.rotateTo(_sphericalA.theta, _sphericalA.phi, enableTransition);
+        this.zoomTo(obj.zoom, enableTransition);
+        this.setFocalOffset(obj.focalOffset[0], obj.focalOffset[1], obj.focalOffset[2], enableTransition);
+        this._needsUpdate = true;
+    }
+    /**
+     * Dispose the cameraControls instance itself, remove all eventListeners.
+     * @category Methods
+     */ dispose() {
+        this._removeAllEventListeners();
+    }
+    _findPointerById(pointerId) {
+        // to support IE11 use some instead of Array#find (will be removed when IE11 is deprecated)
+        let pointer = null;
+        this._activePointers.some((activePointer)=>{
+            if (activePointer.pointerId === pointerId) {
+                pointer = activePointer;
+                return true;
+            }
+            return false;
+        });
+        return pointer;
+    }
+    _encloseToBoundary(position, offset, friction) {
+        const offsetLength2 = offset.lengthSq();
+        if (offsetLength2 === 0) return position;
+        // See: https://twitter.com/FMS_Cat/status/1106508958640988161
+        const newTarget = _v3B.copy(offset).add(position); // target
+        const clampedTarget = this._boundary.clampPoint(newTarget, _v3C); // clamped target
+        const deltaClampedTarget = clampedTarget.sub(newTarget); // newTarget -> clampedTarget
+        const deltaClampedTargetLength2 = deltaClampedTarget.lengthSq(); // squared length of deltaClampedTarget
+        if (deltaClampedTargetLength2 === 0) return position.add(offset);
+        else if (deltaClampedTargetLength2 === offsetLength2) return position;
+        else if (friction === 0) return position.add(offset).add(deltaClampedTarget);
+        else {
+            const offsetFactor = 1 + friction * deltaClampedTargetLength2 / offset.dot(deltaClampedTarget);
+            return position.add(_v3B.copy(offset).multiplyScalar(offsetFactor)).add(deltaClampedTarget.multiplyScalar(1 - friction));
+        }
+    }
+    _updateNearPlaneCorners() {
+        if (isPerspectiveCamera(this._camera)) {
+            const camera = this._camera;
+            const near = camera.near;
+            const fov = camera.getEffectiveFOV() * THREE.MathUtils.DEG2RAD;
+            const heightHalf = Math.tan(fov * 0.5) * near; // near plain half height
+            const widthHalf = heightHalf * camera.aspect; // near plain half width
+            this._nearPlaneCorners[0].set(-widthHalf, -heightHalf, 0);
+            this._nearPlaneCorners[1].set(widthHalf, -heightHalf, 0);
+            this._nearPlaneCorners[2].set(widthHalf, heightHalf, 0);
+            this._nearPlaneCorners[3].set(-widthHalf, heightHalf, 0);
+        } else if (isOrthographicCamera(this._camera)) {
+            const camera = this._camera;
+            const zoomInv = 1 / camera.zoom;
+            const left = camera.left * zoomInv;
+            const right = camera.right * zoomInv;
+            const top = camera.top * zoomInv;
+            const bottom = camera.bottom * zoomInv;
+            this._nearPlaneCorners[0].set(left, top, 0);
+            this._nearPlaneCorners[1].set(right, top, 0);
+            this._nearPlaneCorners[2].set(right, bottom, 0);
+            this._nearPlaneCorners[3].set(left, bottom, 0);
+        }
+    }
+    // lateUpdate
+    _collisionTest() {
+        let distance = Infinity;
+        const hasCollider = this.colliderMeshes.length >= 1;
+        if (!hasCollider) return distance;
+        if (notSupportedInOrthographicCamera(this._camera, '_collisionTest')) return distance;
+        // divide by distance to normalize, lighter than `Vector3.prototype.normalize()`
+        const direction = _v3A.setFromSpherical(this._spherical).divideScalar(this._spherical.radius);
+        _rotationMatrix.lookAt(_ORIGIN, direction, this._camera.up);
+        for(let i = 0; i < 4; i++){
+            const nearPlaneCorner = _v3B.copy(this._nearPlaneCorners[i]);
+            nearPlaneCorner.applyMatrix4(_rotationMatrix);
+            const origin = _v3C.addVectors(this._target, nearPlaneCorner);
+            _raycaster.set(origin, direction);
+            _raycaster.far = this._spherical.radius + 1;
+            const intersects = _raycaster.intersectObjects(this.colliderMeshes);
+            if (intersects.length !== 0 && intersects[0].distance < distance) distance = intersects[0].distance;
+        }
+        return distance;
+    }
+    /**
+     * Get its client rect and package into given `DOMRect` .
+     */ _getClientRect(target) {
+        const rect = this._domElement.getBoundingClientRect();
+        target.x = rect.left;
+        target.y = rect.top;
+        if (this._viewport) {
+            target.x += this._viewport.x;
+            target.y += rect.height - this._viewport.w - this._viewport.y;
+            target.width = this._viewport.z;
+            target.height = this._viewport.w;
+        } else {
+            target.width = rect.width;
+            target.height = rect.height;
+        }
+        return target;
+    }
+    _createOnRestPromise(resolveImmediately) {
+        if (resolveImmediately) return Promise.resolve();
+        this._hasRested = false;
+        this.dispatchEvent({
+            type: 'transitionstart'
+        });
+        return new Promise((resolve)=>{
+            const onResolve = ()=>{
+                this.removeEventListener('rest', onResolve);
+                resolve();
+            };
+            this.addEventListener('rest', onResolve);
+        });
+    }
+    _removeAllEventListeners() {}
+}
+function createBoundingSphere(object3d, out) {
+    const boundingSphere = out;
+    const center = boundingSphere.center;
+    _box3A.makeEmpty();
+    // find the center
+    object3d.traverseVisible((object)=>{
+        if (!object.isMesh) return;
+        _box3A.expandByObject(object);
+    });
+    _box3A.getCenter(center);
+    // find the radius
+    let maxRadiusSq = 0;
+    object3d.traverseVisible((object)=>{
+        if (!object.isMesh) return;
+        const mesh = object;
+        const geometry = mesh.geometry.clone();
+        geometry.applyMatrix4(mesh.matrixWorld);
+        if (geometry.isBufferGeometry) {
+            const bufferGeometry = geometry;
+            const position = bufferGeometry.attributes.position;
+            for(let i = 0, l = position.count; i < l; i++){
+                _v3A.fromBufferAttribute(position, i);
+                maxRadiusSq = Math.max(maxRadiusSq, center.distanceToSquared(_v3A));
+            }
+        } else {
+            // for old three.js, which supports both BufferGeometry and Geometry
+            // this condition block will be removed in the near future.
+            const position = geometry.attributes.position;
+            const vector = new THREE.Vector3();
+            for(let i = 0, l = position.count; i < l; i++){
+                vector.fromBufferAttribute(position, i);
+                maxRadiusSq = Math.max(maxRadiusSq, center.distanceToSquared(vector));
+            }
+        }
+    });
+    boundingSphere.radius = Math.sqrt(maxRadiusSq);
+    return boundingSphere;
+}
+
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"7AZIm":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _three = require("three");
+var _utils = require("./utils");
+var _fragmentGlsl = require("./shader/fragment.glsl");
+var _fragmentGlslDefault = parcelHelpers.interopDefault(_fragmentGlsl);
+var _vertexParticlesGlsl = require("./shader/vertexParticles.glsl");
+var _vertexParticlesGlslDefault = parcelHelpers.interopDefault(_vertexParticlesGlsl);
+var _particleTexturePng = require("../particle-texture.png");
+var _particleTexturePngDefault = parcelHelpers.interopDefault(_particleTexturePng);
+class ParticleCloud {
+    constructor(){
+        this.transitionTime = 0;
+        this.isMorphingEnabled = false;
+        this.material = null;
+        this.particleTexture = new _three.TextureLoader().load(_particleTexturePngDefault.default);
+    }
+    morph(time) {
+        this.transitionTime = time + 0.3;
+        this.isMorphingEnabled = !this.isMorphingEnabled;
+    }
+    resize(resolution) {
+        if (this.material) this.material.uniforms.u_resolution.value = resolution;
+    }
+    createShaderMaterial(resolution, animationTime, animationSpeed, deltaY) {
+        const uniforms = {
+            uTexture: {
+                value: this.particleTexture
+            },
+            time: {
+                value: 0
+            },
+            resolution: {
+                value: new _three.Vector4()
+            },
+            u_resolution: {
+                value: resolution
+            },
+            animationTime: {
+                value: animationTime
+            },
+            transitionTime: {
+                value: 0
+            },
+            animationSpeed: {
+                value: animationSpeed
+            },
+            twist: {
+                value: 0
+            },
+            deltaY: {
+                value: deltaY
+            }
+        };
+        this.material = new _three.ShaderMaterial({
+            extensions: {
+                derivatives: "#extension GL_OES_standard_derivatives : enable"
+            },
+            side: _three.DoubleSide,
+            uniforms: uniforms,
+            // wireframe: true,
+            transparent: true,
+            vertexShader: _vertexParticlesGlslDefault.default,
+            fragmentShader: _fragmentGlslDefault.default,
+            blending: _three.AdditiveBlending,
+            // depthWrite: false,
+            depthTest: false
+        });
+    }
+    createParticleCloud(count, minRadius, maxRadius) {
+        let pos = new Float32Array(count * 3);
+        let particlegeo = new _three.PlaneBufferGeometry(1, 1);
+        let geo = new _three.InstancedBufferGeometry();
+        geo.instanceCount = count;
+        geo.setAttribute("position", particlegeo.getAttribute('position'));
+        geo.index = particlegeo.index;
+        for(let i = 0; i < count; i++){
+            let theta = Math.random() * 2 * Math.PI;
+            let r = _utils.lerp(minRadius, maxRadius, Math.random());
+            let x = r * Math.sin(theta);
+            let y = (Math.random() - 0.5) * 0.05;
+            let z = r * Math.cos(theta);
+            pos.set([
+                x,
+                y,
+                z
+            ], i * 3);
+        }
+        geo.setAttribute("pos", new _three.InstancedBufferAttribute(pos, 3, false));
+        geo.setAttribute("uv", new _three.BufferAttribute(pos, 2));
+        return new _three.Mesh(geo, this.material);
+    }
+    render(time) {
+        if (this.material) {
+            this.material.uniforms.time.value = time;
+            this.material.uniforms.transitionTime.value = this.transitionTime;
+            if (this.isMorphingEnabled) this.material.uniforms.twist.value = 1;
+            else this.material.uniforms.twist.value = -1;
+        }
+    }
+}
+exports.default = ParticleCloud;
+
+},{"three":"ktPTu","./utils":"eYK4L","./shader/fragment.glsl":"501kY","./shader/vertexParticles.glsl":"3ctUY","../particle-texture.png":"3NsHC","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"eYK4L":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "lerp", ()=>lerp
+);
+function lerp(a, b, t) {
+    return a * (1 - t) + b * t;
+}
+
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"501kY":[function(require,module,exports) {
+module.exports = "precision highp float;\n#define GLSLIFY 1\nvarying vec2 vUv;\nuniform sampler2D uTexture;\nuniform vec2 u_resolution;\n\nvoid main(){\n\t// if(globalAlpha < .001 || opacity < .001 || vScale < .001 || fogDepth < .001) discard;\n\t// vec2 st = vec2(-1.0) + 2.0 * gl_PointCoord.xy;\n\t// float d = 1.0 - distance(st, vec2(0.));\n\t\n\t// // d = mix(d, smoothstep(0., .25, d), depth);\n\t// if(!glow) d = smoothstep(0., .25, d);\n\t// else d = mix(d, smoothstep(0., .25, d), depth);\n\t// float depthOpacity = mix(.25, 1.0, depth);\n\t\n\t// if(d < .001) discard;\n\t\n\t// float op = d * opacity * globalAlpha * depthOpacity;\n\t// // op = mix(op, smoothstep(.0, .4, op), fdAlpha);\n\t\n\t// vec3 finalColor = mix(vColor, mix(vColor, vec3(1.), .35), vRing);\n\t// finalColor = mix(finalColor, vec3(0.), 1.0-fogDepth);\n\t\n\t// finalColor = mix(finalColor, applyLevels(finalColor), vLevels);\n\t\n\t// gl_FragColor = vec4(finalColor, op * fogDepth*superOpacity);\n\t\n\t// vec2 st=gl_FragCoord.xy/u_resolution.xy;\n\t\n\t// vec3 color1=vec3(0.7647, 0.4941, 0.0588);\n\t// vec3 color2=vec3(0.0, 0.6157, 0.1843);\n\t\n\t// float mixValue=distance(st,vec2(0,1));\n\t\n\t// vec3 color=mix(color1,color2,mixValue);\n\t// vec4 ttt=texture2D(uTexture,vUv);\n\t\n\t// gl_FragColor=vec4(color,ttt.r);\n\n\tvec2 pos_ndc = 2.0 * gl_FragCoord.xy / u_resolution.xy - 1.0;\n    float dist = length(pos_ndc);\n\n    vec4 white = vec4(0.1373, 0.0902, 0.7725, 1.0);\n    vec4 red = vec4(0.1137, 0.4118, 0.1647, 1.0);\n    vec4 blue = vec4(1.0, 0.9686, 0.0, 1.0);\n    vec4 green = vec4(0.0, 1.0, 0.0, 1.0);\n    float step1 = 0.0;\n    float step2 = 0.5;\n    float step3 = 0.78;\n    float step4 = 1.0;\n\n    vec4 color = mix(white, red, smoothstep(step1, step2, dist));\n    color = mix(color, blue, smoothstep(step2, step3, dist));\n    color = mix(color, green, smoothstep(step3, step4, dist));\n\n\tvec4 ttt=texture2D(uTexture,vUv);\n\tgl_FragColor=vec4(vec3(color),ttt.r);\n\t// gl_FragColor=vec4(vec3(1.0),ttt.r);\n    // gl_FragColor = color;\n}";
+
+},{}],"3ctUY":[function(require,module,exports) {
+module.exports = "precision highp float;\n#define GLSLIFY 1\n\nuniform float time;\nuniform bool boomAnimation;\nuniform float twist;\nuniform bool twist2;\nuniform float animationTime;\nuniform float transitionTime;\nuniform float deltaY;\nuniform float boomAnimationSpeed;\n// uniform float animationTime=1.8;\n// uniform float boomAnimationSpeed=1.3;\nvarying vec3 vPosition;\nvarying vec2 vUv;\nattribute vec3 pos;\n\nconst vec3 color1=vec3(0.,.14,.64);\nconst vec3 color2=vec3(.39,.52,.97);\nconst vec3 color3=vec3(.51,.17,.75);\nconst float E=2.7182818284590452;\nconst float PI=3.14159265359;\n\n//\n// GLSL textureless classic 3D noise \"cnoise\",\n// with an RSL-style periodic variant \"pnoise\".\n// Author:  Stefan Gustavson (stefan.gustavson@liu.se)\n// Version: 2011-10-11\n//\n// Many thanks to Ian McEwan of Ashima Arts for the\n// ideas for permutation and gradient selection.\n//\n// Copyright (c) 2011 Stefan Gustavson. All rights reserved.\n// Distributed under the MIT license. See LICENSE file.\n// https://github.com/stegu/webgl-noise\n//\n\nvec3 mod289(vec3 x)\n{\n\treturn x-floor(x*(1./289.))*289.;\n}\n\nvec4 mod289(vec4 x)\n{\n\treturn x-floor(x*(1./289.))*289.;\n}\n\nvec4 permute(vec4 x)\n{\n\treturn mod289(((x*34.)+10.)*x);\n}\n\nvec4 taylorInvSqrt(vec4 r)\n{\n\treturn 1.79284291400159-.85373472095314*r;\n}\n\nvec3 fade(vec3 t){\n\treturn t*t*t*(t*(t*6.-15.)+10.);\n}\n\n// Classic Perlin noise\nfloat cnoise(vec3 P)\n{\n\tvec3 Pi0=floor(P);// Integer part for indexing\n\tvec3 Pi1=Pi0+vec3(1.);// Integer part + 1\n\tPi0=mod289(Pi0);\n\tPi1=mod289(Pi1);\n\tvec3 Pf0=fract(P);// Fractional part for interpolation\n\tvec3 Pf1=Pf0-vec3(1.);// Fractional part - 1.0\n\tvec4 ix=vec4(Pi0.x,Pi1.x,Pi0.x,Pi1.x);\n\tvec4 iy=vec4(Pi0.yy,Pi1.yy);\n\tvec4 iz0=Pi0.zzzz;\n\tvec4 iz1=Pi1.zzzz;\n\t\n\tvec4 ixy=permute(permute(ix)+iy);\n\tvec4 ixy0=permute(ixy+iz0);\n\tvec4 ixy1=permute(ixy+iz1);\n\t\n\tvec4 gx0=ixy0*(1./7.);\n\tvec4 gy0=fract(floor(gx0)*(1./7.))-.5;\n\tgx0=fract(gx0);\n\tvec4 gz0=vec4(.5)-abs(gx0)-abs(gy0);\n\tvec4 sz0=step(gz0,vec4(0.));\n\tgx0-=sz0*(step(0.,gx0)-.5);\n\tgy0-=sz0*(step(0.,gy0)-.5);\n\t\n\tvec4 gx1=ixy1*(1./7.);\n\tvec4 gy1=fract(floor(gx1)*(1./7.))-.5;\n\tgx1=fract(gx1);\n\tvec4 gz1=vec4(.5)-abs(gx1)-abs(gy1);\n\tvec4 sz1=step(gz1,vec4(0.));\n\tgx1-=sz1*(step(0.,gx1)-.5);\n\tgy1-=sz1*(step(0.,gy1)-.5);\n\t\n\tvec3 g000=vec3(gx0.x,gy0.x,gz0.x);\n\tvec3 g100=vec3(gx0.y,gy0.y,gz0.y);\n\tvec3 g010=vec3(gx0.z,gy0.z,gz0.z);\n\tvec3 g110=vec3(gx0.w,gy0.w,gz0.w);\n\tvec3 g001=vec3(gx1.x,gy1.x,gz1.x);\n\tvec3 g101=vec3(gx1.y,gy1.y,gz1.y);\n\tvec3 g011=vec3(gx1.z,gy1.z,gz1.z);\n\tvec3 g111=vec3(gx1.w,gy1.w,gz1.w);\n\t\n\tvec4 norm0=taylorInvSqrt(vec4(dot(g000,g000),dot(g010,g010),dot(g100,g100),dot(g110,g110)));\n\tg000*=norm0.x;\n\tg010*=norm0.y;\n\tg100*=norm0.z;\n\tg110*=norm0.w;\n\tvec4 norm1=taylorInvSqrt(vec4(dot(g001,g001),dot(g011,g011),dot(g101,g101),dot(g111,g111)));\n\tg001*=norm1.x;\n\tg011*=norm1.y;\n\tg101*=norm1.z;\n\tg111*=norm1.w;\n\t\n\tfloat n000=dot(g000,Pf0);\n\tfloat n100=dot(g100,vec3(Pf1.x,Pf0.yz));\n\tfloat n010=dot(g010,vec3(Pf0.x,Pf1.y,Pf0.z));\n\tfloat n110=dot(g110,vec3(Pf1.xy,Pf0.z));\n\tfloat n001=dot(g001,vec3(Pf0.xy,Pf1.z));\n\tfloat n101=dot(g101,vec3(Pf1.x,Pf0.y,Pf1.z));\n\tfloat n011=dot(g011,vec3(Pf0.x,Pf1.yz));\n\tfloat n111=dot(g111,Pf1);\n\t\n\tvec3 fade_xyz=fade(Pf0);\n\tvec4 n_z=mix(vec4(n000,n100,n010,n110),vec4(n001,n101,n011,n111),fade_xyz.z);\n\tvec2 n_yz=mix(n_z.xy,n_z.zw,fade_xyz.y);\n\tfloat n_xyz=mix(n_yz.x,n_yz.y,fade_xyz.x);\n\treturn 2.2*n_xyz;\n}\n\n// Classic Perlin noise, periodic variant\nfloat pnoise(vec3 P,vec3 rep)\n{\n\tvec3 Pi0=mod(floor(P),rep);// Integer part, modulo period\n\tvec3 Pi1=mod(Pi0+vec3(1.),rep);// Integer part + 1, mod period\n\tPi0=mod289(Pi0);\n\tPi1=mod289(Pi1);\n\tvec3 Pf0=fract(P);// Fractional part for interpolation\n\tvec3 Pf1=Pf0-vec3(1.);// Fractional part - 1.0\n\tvec4 ix=vec4(Pi0.x,Pi1.x,Pi0.x,Pi1.x);\n\tvec4 iy=vec4(Pi0.yy,Pi1.yy);\n\tvec4 iz0=Pi0.zzzz;\n\tvec4 iz1=Pi1.zzzz;\n\t\n\tvec4 ixy=permute(permute(ix)+iy);\n\tvec4 ixy0=permute(ixy+iz0);\n\tvec4 ixy1=permute(ixy+iz1);\n\t\n\tvec4 gx0=ixy0*(1./7.);\n\tvec4 gy0=fract(floor(gx0)*(1./7.))-.5;\n\tgx0=fract(gx0);\n\tvec4 gz0=vec4(.5)-abs(gx0)-abs(gy0);\n\tvec4 sz0=step(gz0,vec4(0.));\n\tgx0-=sz0*(step(0.,gx0)-.5);\n\tgy0-=sz0*(step(0.,gy0)-.5);\n\t\n\tvec4 gx1=ixy1*(1./7.);\n\tvec4 gy1=fract(floor(gx1)*(1./7.))-.5;\n\tgx1=fract(gx1);\n\tvec4 gz1=vec4(.5)-abs(gx1)-abs(gy1);\n\tvec4 sz1=step(gz1,vec4(0.));\n\tgx1-=sz1*(step(0.,gx1)-.5);\n\tgy1-=sz1*(step(0.,gy1)-.5);\n\t\n\tvec3 g000=vec3(gx0.x,gy0.x,gz0.x);\n\tvec3 g100=vec3(gx0.y,gy0.y,gz0.y);\n\tvec3 g010=vec3(gx0.z,gy0.z,gz0.z);\n\tvec3 g110=vec3(gx0.w,gy0.w,gz0.w);\n\tvec3 g001=vec3(gx1.x,gy1.x,gz1.x);\n\tvec3 g101=vec3(gx1.y,gy1.y,gz1.y);\n\tvec3 g011=vec3(gx1.z,gy1.z,gz1.z);\n\tvec3 g111=vec3(gx1.w,gy1.w,gz1.w);\n\t\n\tvec4 norm0=taylorInvSqrt(vec4(dot(g000,g000),dot(g010,g010),dot(g100,g100),dot(g110,g110)));\n\tg000*=norm0.x;\n\tg010*=norm0.y;\n\tg100*=norm0.z;\n\tg110*=norm0.w;\n\tvec4 norm1=taylorInvSqrt(vec4(dot(g001,g001),dot(g011,g011),dot(g101,g101),dot(g111,g111)));\n\tg001*=norm1.x;\n\tg011*=norm1.y;\n\tg101*=norm1.z;\n\tg111*=norm1.w;\n\t\n\tfloat n000=dot(g000,Pf0);\n\tfloat n100=dot(g100,vec3(Pf1.x,Pf0.yz));\n\tfloat n010=dot(g010,vec3(Pf0.x,Pf1.y,Pf0.z));\n\tfloat n110=dot(g110,vec3(Pf1.xy,Pf0.z));\n\tfloat n001=dot(g001,vec3(Pf0.xy,Pf1.z));\n\tfloat n101=dot(g101,vec3(Pf1.x,Pf0.y,Pf1.z));\n\tfloat n011=dot(g011,vec3(Pf0.x,Pf1.yz));\n\tfloat n111=dot(g111,Pf1);\n\t\n\tvec3 fade_xyz=fade(Pf0);\n\tvec4 n_z=mix(vec4(n000,n100,n010,n110),vec4(n001,n101,n011,n111),fade_xyz.z);\n\tvec2 n_yz=mix(n_z.xy,n_z.zw,fade_xyz.y);\n\tfloat n_xyz=mix(n_yz.x,n_yz.y,fade_xyz.x);\n\treturn 2.2*n_xyz;\n}\n\nfloat rand(vec2 co){\n\treturn fract(sin(dot(co,vec2(12.9898,78.233)))*43758.5453);\n}\n\nfloat range(float x,float limit){\n\tif(x>0.){\n\t\treturn limit;\n\t}\n\telse{\n\t\treturn-limit;\n\t}\n}\n\nfloat normalDistribution(float x){\n\tconst float u=.34;\n\tconst float sigma=.1;\n\t\n\treturn(1./(sigma*pow(2.*PI,.5)))*pow(E,-pow((x-u),2.)/(2.*pow(sigma,2.)));\n}\n\nmat3 rotation3dY(float angle){\n\tfloat s=sin(angle);\n\tfloat c=cos(angle);\n\t\n\tfloat scaler=pow(E*E*1.,smoothstep(0.,animationTime,time)*boomAnimationSpeed);\n\t// float scaler=1.;\n\t\n\treturn mat3(\n\t\tc*scaler,0.,-s*scaler,\n\t\t0.,1.,0.,\n\t\ts*scaler,0.,c*scaler\n\t);\n}\n\nvec3 fbm_vec3(vec3 p,float frequency,float offset){\n\treturn vec3(\n\t\tcnoise((p+vec3(offset))*frequency),\n\t\tcnoise((p+vec3(offset+20.))*frequency),\n\t\tcnoise((p+vec3(offset-30.))*frequency)\n\t);\n}\n\nvec3 getOffset(vec3 p){\n\tfloat twistScale=cnoise(pos)*.5+5.;\n\t// vec3 tempPos=rotation3dY(time*(.1+twistScale)+length(pos.xz))*p;\n\t\n\tvec3 offset=fbm_vec3(pos,3.,.5);\n\t\n\tfloat lastTime=transitionTime-.3;\n\tfloat delta=smoothstep(0.,transitionTime-lastTime,time-lastTime);\n\t\n\tif(twist2){\n\t\tif(twist>0.){\n\t\t\tfloat lastTime=transitionTime-.3;\n\t\t\tfloat delta=smoothstep(0.,transitionTime-lastTime,time-lastTime);\n\t\t\treturn offset*delta*twistScale;\n\t\t}\n\t\telse if(twist<0.){\n\t\t\tfloat lastTime=transitionTime-.3;\n\t\t\tfloat delta=smoothstep(transitionTime-lastTime,0.,time-lastTime);\n\t\t\treturn offset*delta*twistScale;\n\t\t}\n\t}\n\telse{\n\t\treturn offset;\n\t}\n}\n\nvoid main(){\n\t\n\tvUv=position.xy+vec2(.5);\n\tvec3 finalPos=pos+position*.1;\n\t\n\tfloat particleSize=cnoise(pos*5.)*.5+2.5;\n\t\n\tvec3 worldPos=rotation3dY((time)*.01*(.1+particleSize*.5))*pos;\n\t\n\tvec3 offset0=getOffset(worldPos);\n\tvec3 offset=fbm_vec3(worldPos+offset0,.3,.0);\n\t\n\tworldPos+=offset;\n\tworldPos+=offset0;\n\t\n\tvec3 particlePosition=(modelMatrix*vec4(worldPos,1.)).xyz;\n\t\n\tvec4 viewPos=viewMatrix*vec4(particlePosition,1.);\n\t\n\tviewPos.xyz+=position*(.02+.05*particleSize);\n\tif(twist2&&twist>0.){\n\t\tfloat lastTime=transitionTime-.3;\n\t\tfloat delta=smoothstep(0.,transitionTime-lastTime,time-lastTime);\n\t\tviewPos.y+=-delta*deltaY;\n\t}\n\telse if(twist2&&twist<0.){\n\t\tfloat lastTime=transitionTime-.3;\n\t\tfloat delta=smoothstep(transitionTime-lastTime,0.,time-lastTime);\n\t\tviewPos.y+=-delta*deltaY;\n\t}\n\t\n\tgl_Position=projectionMatrix*viewPos;\n\t\n}";
+
+},{}],"3NsHC":[function(require,module,exports) {
 module.exports = require('./helpers/bundle-url').getBundleURL('8twc1') + "particle-texture.91ed3def.png" + "?" + Date.now();
 
 },{"./helpers/bundle-url":"lgJ39"}],"lgJ39":[function(require,module,exports) {
@@ -36890,1596 +39859,843 @@ exports.getBundleURL = getBundleURLCached;
 exports.getBaseURL = getBaseURL;
 exports.getOrigin = getOrigin;
 
-},{}],"7mQah":[function(require,module,exports) {
-var seedRandom = require('seed-random');
-var SimplexNoise = require('simplex-noise');
-var defined = require('defined');
-function createRandom(defaultSeed1) {
-    defaultSeed1 = defined(defaultSeed1, null);
-    var defaultRandom = Math.random;
-    var currentSeed;
-    var currentRandom;
-    var noiseGenerator;
-    var _nextGaussian = null;
-    var _hasNextGaussian = false;
-    setSeed(defaultSeed1);
-    return {
-        value: value,
-        createRandom: function(defaultSeed) {
-            return createRandom(defaultSeed);
-        },
-        setSeed: setSeed,
-        getSeed: getSeed,
-        getRandomSeed: getRandomSeed,
-        valueNonZero: valueNonZero,
-        permuteNoise: permuteNoise,
-        noise1D: noise1D,
-        noise2D: noise2D,
-        noise3D: noise3D,
-        noise4D: noise4D,
-        sign: sign,
-        boolean: boolean,
-        chance: chance,
-        range: range,
-        rangeFloor: rangeFloor,
-        pick: pick,
-        shuffle: shuffle,
-        onCircle: onCircle,
-        insideCircle: insideCircle,
-        onSphere: onSphere,
-        insideSphere: insideSphere,
-        quaternion: quaternion,
-        weighted: weighted,
-        weightedSet: weightedSet,
-        weightedSetIndex: weightedSetIndex,
-        gaussian: gaussian
-    };
-    function setSeed(seed, opt) {
-        if (typeof seed === 'number' || typeof seed === 'string') {
-            currentSeed = seed;
-            currentRandom = seedRandom(currentSeed, opt);
+},{}],"e5jie":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "EffectComposer", ()=>EffectComposer
+);
+parcelHelpers.export(exports, "Pass", ()=>Pass
+);
+parcelHelpers.export(exports, "FullScreenQuad", ()=>FullScreenQuad
+);
+var _three = require("three");
+var _copyShaderJs = require("../shaders/CopyShader.js");
+var _shaderPassJs = require("./ShaderPass.js");
+var _maskPassJs = require("./MaskPass.js");
+class EffectComposer {
+    constructor(renderer, renderTarget){
+        this.renderer = renderer;
+        if (renderTarget === undefined) {
+            const parameters = {
+                minFilter: _three.LinearFilter,
+                magFilter: _three.LinearFilter,
+                format: _three.RGBAFormat
+            };
+            const size = renderer.getSize(new _three.Vector2());
+            this._pixelRatio = renderer.getPixelRatio();
+            this._width = size.width;
+            this._height = size.height;
+            renderTarget = new _three.WebGLRenderTarget(this._width * this._pixelRatio, this._height * this._pixelRatio, parameters);
+            renderTarget.texture.name = 'EffectComposer.rt1';
         } else {
-            currentSeed = undefined;
-            currentRandom = defaultRandom;
+            this._pixelRatio = 1;
+            this._width = renderTarget.width;
+            this._height = renderTarget.height;
         }
-        noiseGenerator = createNoise();
-        _nextGaussian = null;
-        _hasNextGaussian = false;
+        this.renderTarget1 = renderTarget;
+        this.renderTarget2 = renderTarget.clone();
+        this.renderTarget2.texture.name = 'EffectComposer.rt2';
+        this.writeBuffer = this.renderTarget1;
+        this.readBuffer = this.renderTarget2;
+        this.renderToScreen = true;
+        this.passes = [];
+        // dependencies
+        if (_copyShaderJs.CopyShader === undefined) console.error('THREE.EffectComposer relies on CopyShader');
+        if (_shaderPassJs.ShaderPass === undefined) console.error('THREE.EffectComposer relies on ShaderPass');
+        this.copyPass = new _shaderPassJs.ShaderPass(_copyShaderJs.CopyShader);
+        this.clock = new _three.Clock();
     }
-    function value() {
-        return currentRandom();
+    swapBuffers() {
+        const tmp = this.readBuffer;
+        this.readBuffer = this.writeBuffer;
+        this.writeBuffer = tmp;
     }
-    function valueNonZero() {
-        var u = 0;
-        while(u === 0)u = value();
-        return u;
+    addPass(pass) {
+        this.passes.push(pass);
+        pass.setSize(this._width * this._pixelRatio, this._height * this._pixelRatio);
     }
-    function getSeed() {
-        return currentSeed;
+    insertPass(pass, index) {
+        this.passes.splice(index, 0, pass);
+        pass.setSize(this._width * this._pixelRatio, this._height * this._pixelRatio);
     }
-    function getRandomSeed() {
-        var seed = String(Math.floor(Math.random() * 1000000));
-        return seed;
+    removePass(pass) {
+        const index = this.passes.indexOf(pass);
+        if (index !== -1) this.passes.splice(index, 1);
     }
-    function createNoise() {
-        return new SimplexNoise(currentRandom);
-    }
-    function permuteNoise() {
-        noiseGenerator = createNoise();
-    }
-    function noise1D(x, frequency, amplitude) {
-        if (!isFinite(x)) throw new TypeError('x component for noise() must be finite');
-        frequency = defined(frequency, 1);
-        amplitude = defined(amplitude, 1);
-        return amplitude * noiseGenerator.noise2D(x * frequency, 0);
-    }
-    function noise2D(x, y, frequency, amplitude) {
-        if (!isFinite(x)) throw new TypeError('x component for noise() must be finite');
-        if (!isFinite(y)) throw new TypeError('y component for noise() must be finite');
-        frequency = defined(frequency, 1);
-        amplitude = defined(amplitude, 1);
-        return amplitude * noiseGenerator.noise2D(x * frequency, y * frequency);
-    }
-    function noise3D(x, y, z, frequency, amplitude) {
-        if (!isFinite(x)) throw new TypeError('x component for noise() must be finite');
-        if (!isFinite(y)) throw new TypeError('y component for noise() must be finite');
-        if (!isFinite(z)) throw new TypeError('z component for noise() must be finite');
-        frequency = defined(frequency, 1);
-        amplitude = defined(amplitude, 1);
-        return amplitude * noiseGenerator.noise3D(x * frequency, y * frequency, z * frequency);
-    }
-    function noise4D(x, y, z, w, frequency, amplitude) {
-        if (!isFinite(x)) throw new TypeError('x component for noise() must be finite');
-        if (!isFinite(y)) throw new TypeError('y component for noise() must be finite');
-        if (!isFinite(z)) throw new TypeError('z component for noise() must be finite');
-        if (!isFinite(w)) throw new TypeError('w component for noise() must be finite');
-        frequency = defined(frequency, 1);
-        amplitude = defined(amplitude, 1);
-        return amplitude * noiseGenerator.noise4D(x * frequency, y * frequency, z * frequency, w * frequency);
-    }
-    function sign() {
-        return boolean() ? 1 : -1;
-    }
-    function boolean() {
-        return value() > 0.5;
-    }
-    function chance(n) {
-        n = defined(n, 0.5);
-        if (typeof n !== 'number') throw new TypeError('expected n to be a number');
-        return value() < n;
-    }
-    function range(min, max) {
-        if (max === undefined) {
-            max = min;
-            min = 0;
+    isLastEnabledPass(passIndex) {
+        for(let i = passIndex + 1; i < this.passes.length; i++){
+            if (this.passes[i].enabled) return false;
         }
-        if (typeof min !== 'number' || typeof max !== 'number') {
-            throw new TypeError('Expected all arguments to be numbers');
-        }
-        return value() * (max - min) + min;
+        return true;
     }
-    function rangeFloor(min, max) {
-        if (max === undefined) {
-            max = min;
-            min = 0;
-        }
-        if (typeof min !== 'number' || typeof max !== 'number') {
-            throw new TypeError('Expected all arguments to be numbers');
-        }
-        return Math.floor(range(min, max));
-    }
-    function pick(array) {
-        if (array.length === 0) return undefined;
-        return array[rangeFloor(0, array.length)];
-    }
-    function shuffle(arr) {
-        if (!Array.isArray(arr)) {
-            throw new TypeError('Expected Array, got ' + typeof arr);
-        }
-        var rand;
-        var tmp;
-        var len = arr.length;
-        var ret = arr.slice();
-        while(len){
-            rand = Math.floor(value() * len--);
-            tmp = ret[len];
-            ret[len] = ret[rand];
-            ret[rand] = tmp;
-        }
-        return ret;
-    }
-    function onCircle(radius, out) {
-        radius = defined(radius, 1);
-        out = out || [];
-        var theta = value() * 2 * Math.PI;
-        out[0] = radius * Math.cos(theta);
-        out[1] = radius * Math.sin(theta);
-        return out;
-    }
-    function insideCircle(radius, out) {
-        radius = defined(radius, 1);
-        out = out || [];
-        onCircle(1, out);
-        var r = radius * Math.sqrt(value());
-        out[0] *= r;
-        out[1] *= r;
-        return out;
-    }
-    function onSphere(radius, out) {
-        radius = defined(radius, 1);
-        out = out || [];
-        var u = value() * Math.PI * 2;
-        var v = value() * 2 - 1;
-        var phi = u;
-        var theta = Math.acos(v);
-        out[0] = radius * Math.sin(theta) * Math.cos(phi);
-        out[1] = radius * Math.sin(theta) * Math.sin(phi);
-        out[2] = radius * Math.cos(theta);
-        return out;
-    }
-    function insideSphere(radius, out) {
-        radius = defined(radius, 1);
-        out = out || [];
-        var u = value() * Math.PI * 2;
-        var v = value() * 2 - 1;
-        var k = value();
-        var phi = u;
-        var theta = Math.acos(v);
-        var r = radius * Math.cbrt(k);
-        out[0] = r * Math.sin(theta) * Math.cos(phi);
-        out[1] = r * Math.sin(theta) * Math.sin(phi);
-        out[2] = r * Math.cos(theta);
-        return out;
-    }
-    function quaternion(out) {
-        out = out || [];
-        var u1 = value();
-        var u2 = value();
-        var u3 = value();
-        var sq1 = Math.sqrt(1 - u1);
-        var sq2 = Math.sqrt(u1);
-        var theta1 = Math.PI * 2 * u2;
-        var theta2 = Math.PI * 2 * u3;
-        var x = Math.sin(theta1) * sq1;
-        var y = Math.cos(theta1) * sq1;
-        var z = Math.sin(theta2) * sq2;
-        var w = Math.cos(theta2) * sq2;
-        out[0] = x;
-        out[1] = y;
-        out[2] = z;
-        out[3] = w;
-        return out;
-    }
-    function weightedSet(set) {
-        set = set || [];
-        if (set.length === 0) return null;
-        return set[weightedSetIndex(set)].value;
-    }
-    function weightedSetIndex(set) {
-        set = set || [];
-        if (set.length === 0) return -1;
-        return weighted(set.map(function(s) {
-            return s.weight;
-        }));
-    }
-    function weighted(weights) {
-        weights = weights || [];
-        if (weights.length === 0) return -1;
-        var totalWeight = 0;
-        var i;
-        for(i = 0; i < weights.length; i++){
-            totalWeight += weights[i];
-        }
-        if (totalWeight <= 0) throw new Error('Weights must sum to > 0');
-        var random = value() * totalWeight;
-        for(i = 0; i < weights.length; i++){
-            if (random < weights[i]) {
-                return i;
-            }
-            random -= weights[i];
-        }
-        return 0;
-    }
-    function gaussian(mean, standardDerivation) {
-        mean = defined(mean, 0);
-        standardDerivation = defined(standardDerivation, 1);
-        // https://github.com/openjdk-mirror/jdk7u-jdk/blob/f4d80957e89a19a29bb9f9807d2a28351ed7f7df/src/share/classes/java/util/Random.java#L496
-        if (_hasNextGaussian) {
-            _hasNextGaussian = false;
-            var result = _nextGaussian;
-            _nextGaussian = null;
-            return mean + standardDerivation * result;
-        } else {
-            var v1 = 0;
-            var v2 = 0;
-            var s = 0;
-            do {
-                v1 = value() * 2 - 1; // between -1 and 1
-                v2 = value() * 2 - 1; // between -1 and 1
-                s = v1 * v1 + v2 * v2;
-            }while (s >= 1 || s === 0)
-            var multiplier = Math.sqrt(-2 * Math.log(s) / s);
-            _nextGaussian = v2 * multiplier;
-            _hasNextGaussian = true;
-            return mean + standardDerivation * (v1 * multiplier);
-        }
-    }
-}
-module.exports = createRandom();
-
-},{"seed-random":"k4S20","simplex-noise":"gXjlc","defined":"gdrFG"}],"k4S20":[function(require,module,exports) {
-'use strict';
-var global = arguments[3];
-var width = 256; // each RC4 output is 0 <= x < 256
-var chunks = 6; // at least six RC4 outputs for each double
-var digits = 52; // there are 52 significant digits in a double
-var pool = []; // pool: entropy pool starts empty
-var GLOBAL = typeof global === 'undefined' ? window : global;
-//
-// The following constants are related to IEEE 754 limits.
-//
-var startdenom = Math.pow(width, chunks), significance = Math.pow(2, digits), overflow = significance * 2, mask = width - 1;
-var oldRandom = Math.random;
-//
-// seedrandom()
-// This is the seedrandom function described above.
-//
-module.exports = function(seed, options) {
-    if (options && options.global === true) {
-        options.global = false;
-        Math.random = module.exports(seed, options);
-        options.global = true;
-        return Math.random;
-    }
-    var use_entropy = options && options.entropy || false;
-    var key = [];
-    // Flatten the seed string or build one from local entropy if needed.
-    var shortseed = mixkey(flatten(use_entropy ? [
-        seed,
-        tostring(pool)
-    ] : 0 in arguments ? seed : autoseed(), 3), key);
-    // Use the seed to initialize an ARC4 generator.
-    var arc4 = new ARC4(key);
-    // Mix the randomness into accumulated entropy.
-    mixkey(tostring(arc4.S), pool);
-    // Override Math.random
-    // This function returns a random double in [0, 1) that contains
-    // randomness in every bit of the mantissa of the IEEE 754 value.
-    return function() {
-        var n = arc4.g(chunks), d = startdenom, x = 0; //   and no 'extra last byte'.
-        while(n < significance){
-            n = (n + x) * width; //   shifting numerator and
-            d *= width; //   denominator and generating a
-            x = arc4.g(1); //   new least-significant-byte.
-        }
-        while(n >= overflow){
-            n /= 2; //   last byte, shift everything
-            d /= 2; //   right using integer Math until
-            x >>>= 1; //   we have exactly the desired bits.
-        }
-        return (n + x) / d; // Form the number within [0, 1).
-    };
-};
-module.exports.resetGlobal = function() {
-    Math.random = oldRandom;
-};
-//
-// ARC4
-//
-// An ARC4 implementation.  The constructor takes a key in the form of
-// an array of at most (width) integers that should be 0 <= x < (width).
-//
-// The g(count) method returns a pseudorandom integer that concatenates
-// the next (count) outputs from ARC4.  Its return value is a number x
-// that is in the range 0 <= x < (width ^ count).
-//
-/** @constructor */ function ARC4(key) {
-    var t1, keylen = key.length, me = this, i1 = 0, j1 = me.i = me.j = 0, s1 = me.S = [];
-    // The empty key [] is treated as [0].
-    if (!keylen) key = [
-        keylen++
-    ];
-    // Set up S using the standard key scheduling algorithm.
-    while(i1 < width)s1[i1] = i1++;
-    for(i1 = 0; i1 < width; i1++){
-        s1[i1] = s1[j1 = mask & j1 + key[i1 % keylen] + (t1 = s1[i1])];
-        s1[j1] = t1;
-    }
-    // The "g" method returns the next (count) outputs as one number.
-    (me.g = function(count) {
-        // Using instance members instead of closure state nearly doubles speed.
-        var t, r = 0, i = me.i, j = me.j, s = me.S;
-        while(count--){
-            t = s[i = mask & i + 1];
-            r = r * width + s[mask & (s[i] = s[j = mask & j + t]) + (s[j] = t)];
-        }
-        me.i = i;
-        me.j = j;
-        return r;
-    // For robust unpredictability discard an initial batch of values.
-    // See http://www.rsa.com/rsalabs/node.asp?id=2009
-    })(width);
-}
-//
-// flatten()
-// Converts an object tree to nested arrays of strings.
-//
-function flatten(obj, depth) {
-    var result = [], typ = (typeof obj)[0], prop;
-    if (depth && typ == 'o') {
-        for(prop in obj)try {
-            result.push(flatten(obj[prop], depth - 1));
-        } catch (e) {}
-    }
-    return result.length ? result : typ == 's' ? obj : obj + '\0';
-}
-//
-// mixkey()
-// Mixes a string seed into a key that is an array of integers, and
-// returns a shortened string seed that is equivalent to the result key.
-//
-function mixkey(seed, key) {
-    var stringseed = seed + '', smear, j = 0;
-    while(j < stringseed.length)key[mask & j] = mask & (smear ^= key[mask & j] * 19) + stringseed.charCodeAt(j++);
-    return tostring(key);
-}
-//
-// autoseed()
-// Returns an object for autoseeding, using window.crypto if available.
-//
-/** @param {Uint8Array=} seed */ function autoseed(seed) {
-    try {
-        GLOBAL.crypto.getRandomValues(seed = new Uint8Array(width));
-        return tostring(seed);
-    } catch (e) {
-        return [
-            +new Date,
-            GLOBAL,
-            GLOBAL.navigator && GLOBAL.navigator.plugins,
-            GLOBAL.screen,
-            tostring(pool)
-        ];
-    }
-}
-//
-// tostring()
-// Converts an array of charcodes to a string
-//
-function tostring(a) {
-    return String.fromCharCode.apply(0, a);
-}
-//
-// When seedrandom.js is loaded, we immediately mix a few bits
-// from the built-in RNG into the entropy pool.  Because we do
-// not want to intefere with determinstic PRNG state later,
-// seedrandom will not call Math.random on its own again after
-// initialization.
-//
-mixkey(Math.random(), pool);
-
-},{}],"gXjlc":[function(require,module,exports) {
-/*
- * A fast javascript implementation of simplex noise by Jonas Wagner
-
-Based on a speed-improved simplex noise algorithm for 2D, 3D and 4D in Java.
-Which is based on example code by Stefan Gustavson (stegu@itn.liu.se).
-With Optimisations by Peter Eastman (peastman@drizzle.stanford.edu).
-Better rank ordering method by Stefan Gustavson in 2012.
-
-
- Copyright (c) 2018 Jonas Wagner
-
- Permission is hereby granted, free of charge, to any person obtaining a copy
- of this software and associated documentation files (the "Software"), to deal
- in the Software without restriction, including without limitation the rights
- to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- copies of the Software, and to permit persons to whom the Software is
- furnished to do so, subject to the following conditions:
-
- The above copyright notice and this permission notice shall be included in all
- copies or substantial portions of the Software.
-
- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- SOFTWARE.
- */ (function() {
-    var F2 = 0.5 * (Math.sqrt(3) - 1);
-    var G2 = (3 - Math.sqrt(3)) / 6;
-    var F3 = 1 / 3;
-    var G3 = 1 / 6;
-    var F4 = (Math.sqrt(5) - 1) / 4;
-    var G4 = (5 - Math.sqrt(5)) / 20;
-    function SimplexNoise(randomOrSeed) {
-        var random;
-        if (typeof randomOrSeed == 'function') random = randomOrSeed;
-        else if (randomOrSeed) random = alea(randomOrSeed);
-        else random = Math.random;
-        this.p = buildPermutationTable(random);
-        this.perm = new Uint8Array(512);
-        this.permMod12 = new Uint8Array(512);
-        for(var i = 0; i < 512; i++){
-            this.perm[i] = this.p[i & 255];
-            this.permMod12[i] = this.perm[i] % 12;
-        }
-    }
-    SimplexNoise.prototype = {
-        grad3: new Float32Array([
-            1,
-            1,
-            0,
-            -1,
-            1,
-            0,
-            1,
-            -1,
-            0,
-            -1,
-            -1,
-            0,
-            1,
-            0,
-            1,
-            -1,
-            0,
-            1,
-            1,
-            0,
-            -1,
-            -1,
-            0,
-            -1,
-            0,
-            1,
-            1,
-            0,
-            -1,
-            1,
-            0,
-            1,
-            -1,
-            0,
-            -1,
-            -1
-        ]),
-        grad4: new Float32Array([
-            0,
-            1,
-            1,
-            1,
-            0,
-            1,
-            1,
-            -1,
-            0,
-            1,
-            -1,
-            1,
-            0,
-            1,
-            -1,
-            -1,
-            0,
-            -1,
-            1,
-            1,
-            0,
-            -1,
-            1,
-            -1,
-            0,
-            -1,
-            -1,
-            1,
-            0,
-            -1,
-            -1,
-            -1,
-            1,
-            0,
-            1,
-            1,
-            1,
-            0,
-            1,
-            -1,
-            1,
-            0,
-            -1,
-            1,
-            1,
-            0,
-            -1,
-            -1,
-            -1,
-            0,
-            1,
-            1,
-            -1,
-            0,
-            1,
-            -1,
-            -1,
-            0,
-            -1,
-            1,
-            -1,
-            0,
-            -1,
-            -1,
-            1,
-            1,
-            0,
-            1,
-            1,
-            1,
-            0,
-            -1,
-            1,
-            -1,
-            0,
-            1,
-            1,
-            -1,
-            0,
-            -1,
-            -1,
-            1,
-            0,
-            1,
-            -1,
-            1,
-            0,
-            -1,
-            -1,
-            -1,
-            0,
-            1,
-            -1,
-            -1,
-            0,
-            -1,
-            1,
-            1,
-            1,
-            0,
-            1,
-            1,
-            -1,
-            0,
-            1,
-            -1,
-            1,
-            0,
-            1,
-            -1,
-            -1,
-            0,
-            -1,
-            1,
-            1,
-            0,
-            -1,
-            1,
-            -1,
-            0,
-            -1,
-            -1,
-            1,
-            0,
-            -1,
-            -1,
-            -1,
-            0
-        ]),
-        noise2D: function(xin, yin) {
-            var permMod12 = this.permMod12;
-            var perm = this.perm;
-            var grad3 = this.grad3;
-            var n0 = 0; // Noise contributions from the three corners
-            var n1 = 0;
-            var n2 = 0;
-            // Skew the input space to determine which simplex cell we're in
-            var s = (xin + yin) * F2; // Hairy factor for 2D
-            var i = Math.floor(xin + s);
-            var j = Math.floor(yin + s);
-            var t = (i + j) * G2;
-            var X0 = i - t; // Unskew the cell origin back to (x,y) space
-            var Y0 = j - t;
-            var x0 = xin - X0; // The x,y distances from the cell origin
-            var y0 = yin - Y0;
-            // For the 2D case, the simplex shape is an equilateral triangle.
-            // Determine which simplex we are in.
-            var i1, j1; // Offsets for second (middle) corner of simplex in (i,j) coords
-            if (x0 > y0) {
-                i1 = 1;
-                j1 = 0;
-            } else {
-                i1 = 0;
-                j1 = 1;
-            } // upper triangle, YX order: (0,0)->(0,1)->(1,1)
-            // A step of (1,0) in (i,j) means a step of (1-c,-c) in (x,y), and
-            // a step of (0,1) in (i,j) means a step of (-c,1-c) in (x,y), where
-            // c = (3-sqrt(3))/6
-            var x1 = x0 - i1 + G2; // Offsets for middle corner in (x,y) unskewed coords
-            var y1 = y0 - j1 + G2;
-            var x2 = x0 - 1 + 2 * G2; // Offsets for last corner in (x,y) unskewed coords
-            var y2 = y0 - 1 + 2 * G2;
-            // Work out the hashed gradient indices of the three simplex corners
-            var ii = i & 255;
-            var jj = j & 255;
-            // Calculate the contribution from the three corners
-            var t0 = 0.5 - x0 * x0 - y0 * y0;
-            if (t0 >= 0) {
-                var gi0 = permMod12[ii + perm[jj]] * 3;
-                t0 *= t0;
-                n0 = t0 * t0 * (grad3[gi0] * x0 + grad3[gi0 + 1] * y0); // (x,y) of grad3 used for 2D gradient
-            }
-            var t1 = 0.5 - x1 * x1 - y1 * y1;
-            if (t1 >= 0) {
-                var gi1 = permMod12[ii + i1 + perm[jj + j1]] * 3;
-                t1 *= t1;
-                n1 = t1 * t1 * (grad3[gi1] * x1 + grad3[gi1 + 1] * y1);
-            }
-            var t2 = 0.5 - x2 * x2 - y2 * y2;
-            if (t2 >= 0) {
-                var gi2 = permMod12[ii + 1 + perm[jj + 1]] * 3;
-                t2 *= t2;
-                n2 = t2 * t2 * (grad3[gi2] * x2 + grad3[gi2 + 1] * y2);
-            }
-            // Add contributions from each corner to get the final noise value.
-            // The result is scaled to return values in the interval [-1,1].
-            return 70 * (n0 + n1 + n2);
-        },
-        // 3D simplex noise
-        noise3D: function(xin, yin, zin) {
-            var permMod12 = this.permMod12;
-            var perm = this.perm;
-            var grad3 = this.grad3;
-            var n0, n1, n2, n3; // Noise contributions from the four corners
-            // Skew the input space to determine which simplex cell we're in
-            var s = (xin + yin + zin) * F3; // Very nice and simple skew factor for 3D
-            var i = Math.floor(xin + s);
-            var j = Math.floor(yin + s);
-            var k = Math.floor(zin + s);
-            var t = (i + j + k) * G3;
-            var X0 = i - t; // Unskew the cell origin back to (x,y,z) space
-            var Y0 = j - t;
-            var Z0 = k - t;
-            var x0 = xin - X0; // The x,y,z distances from the cell origin
-            var y0 = yin - Y0;
-            var z0 = zin - Z0;
-            // For the 3D case, the simplex shape is a slightly irregular tetrahedron.
-            // Determine which simplex we are in.
-            var i1, j1, k1; // Offsets for second corner of simplex in (i,j,k) coords
-            var i2, j2, k2; // Offsets for third corner of simplex in (i,j,k) coords
-            if (x0 >= y0) {
-                if (y0 >= z0) {
-                    i1 = 1;
-                    j1 = 0;
-                    k1 = 0;
-                    i2 = 1;
-                    j2 = 1;
-                    k2 = 0;
-                } else if (x0 >= z0) {
-                    i1 = 1;
-                    j1 = 0;
-                    k1 = 0;
-                    i2 = 1;
-                    j2 = 0;
-                    k2 = 1;
-                } else {
-                    i1 = 0;
-                    j1 = 0;
-                    k1 = 1;
-                    i2 = 1;
-                    j2 = 0;
-                    k2 = 1;
-                } // Z X Y order
-            } else {
-                if (y0 < z0) {
-                    i1 = 0;
-                    j1 = 0;
-                    k1 = 1;
-                    i2 = 0;
-                    j2 = 1;
-                    k2 = 1;
-                } else if (x0 < z0) {
-                    i1 = 0;
-                    j1 = 1;
-                    k1 = 0;
-                    i2 = 0;
-                    j2 = 1;
-                    k2 = 1;
-                } else {
-                    i1 = 0;
-                    j1 = 1;
-                    k1 = 0;
-                    i2 = 1;
-                    j2 = 1;
-                    k2 = 0;
-                } // Y X Z order
-            }
-            // A step of (1,0,0) in (i,j,k) means a step of (1-c,-c,-c) in (x,y,z),
-            // a step of (0,1,0) in (i,j,k) means a step of (-c,1-c,-c) in (x,y,z), and
-            // a step of (0,0,1) in (i,j,k) means a step of (-c,-c,1-c) in (x,y,z), where
-            // c = 1/6.
-            var x1 = x0 - i1 + G3; // Offsets for second corner in (x,y,z) coords
-            var y1 = y0 - j1 + G3;
-            var z1 = z0 - k1 + G3;
-            var x2 = x0 - i2 + 2 * G3; // Offsets for third corner in (x,y,z) coords
-            var y2 = y0 - j2 + 2 * G3;
-            var z2 = z0 - k2 + 2 * G3;
-            var x3 = x0 - 1 + 3 * G3; // Offsets for last corner in (x,y,z) coords
-            var y3 = y0 - 1 + 3 * G3;
-            var z3 = z0 - 1 + 3 * G3;
-            // Work out the hashed gradient indices of the four simplex corners
-            var ii = i & 255;
-            var jj = j & 255;
-            var kk = k & 255;
-            // Calculate the contribution from the four corners
-            var t0 = 0.6 - x0 * x0 - y0 * y0 - z0 * z0;
-            if (t0 < 0) n0 = 0;
-            else {
-                var gi0 = permMod12[ii + perm[jj + perm[kk]]] * 3;
-                t0 *= t0;
-                n0 = t0 * t0 * (grad3[gi0] * x0 + grad3[gi0 + 1] * y0 + grad3[gi0 + 2] * z0);
-            }
-            var t1 = 0.6 - x1 * x1 - y1 * y1 - z1 * z1;
-            if (t1 < 0) n1 = 0;
-            else {
-                var gi1 = permMod12[ii + i1 + perm[jj + j1 + perm[kk + k1]]] * 3;
-                t1 *= t1;
-                n1 = t1 * t1 * (grad3[gi1] * x1 + grad3[gi1 + 1] * y1 + grad3[gi1 + 2] * z1);
-            }
-            var t2 = 0.6 - x2 * x2 - y2 * y2 - z2 * z2;
-            if (t2 < 0) n2 = 0;
-            else {
-                var gi2 = permMod12[ii + i2 + perm[jj + j2 + perm[kk + k2]]] * 3;
-                t2 *= t2;
-                n2 = t2 * t2 * (grad3[gi2] * x2 + grad3[gi2 + 1] * y2 + grad3[gi2 + 2] * z2);
-            }
-            var t3 = 0.6 - x3 * x3 - y3 * y3 - z3 * z3;
-            if (t3 < 0) n3 = 0;
-            else {
-                var gi3 = permMod12[ii + 1 + perm[jj + 1 + perm[kk + 1]]] * 3;
-                t3 *= t3;
-                n3 = t3 * t3 * (grad3[gi3] * x3 + grad3[gi3 + 1] * y3 + grad3[gi3 + 2] * z3);
-            }
-            // Add contributions from each corner to get the final noise value.
-            // The result is scaled to stay just inside [-1,1]
-            return 32 * (n0 + n1 + n2 + n3);
-        },
-        // 4D simplex noise, better simplex rank ordering method 2012-03-09
-        noise4D: function(x, y, z, w) {
-            var perm = this.perm;
-            var grad4 = this.grad4;
-            var n0, n1, n2, n3, n4; // Noise contributions from the five corners
-            // Skew the (x,y,z,w) space to determine which cell of 24 simplices we're in
-            var s = (x + y + z + w) * F4; // Factor for 4D skewing
-            var i = Math.floor(x + s);
-            var j = Math.floor(y + s);
-            var k = Math.floor(z + s);
-            var l = Math.floor(w + s);
-            var t = (i + j + k + l) * G4; // Factor for 4D unskewing
-            var X0 = i - t; // Unskew the cell origin back to (x,y,z,w) space
-            var Y0 = j - t;
-            var Z0 = k - t;
-            var W0 = l - t;
-            var x0 = x - X0; // The x,y,z,w distances from the cell origin
-            var y0 = y - Y0;
-            var z0 = z - Z0;
-            var w0 = w - W0;
-            // For the 4D case, the simplex is a 4D shape I won't even try to describe.
-            // To find out which of the 24 possible simplices we're in, we need to
-            // determine the magnitude ordering of x0, y0, z0 and w0.
-            // Six pair-wise comparisons are performed between each possible pair
-            // of the four coordinates, and the results are used to rank the numbers.
-            var rankx = 0;
-            var ranky = 0;
-            var rankz = 0;
-            var rankw = 0;
-            if (x0 > y0) rankx++;
-            else ranky++;
-            if (x0 > z0) rankx++;
-            else rankz++;
-            if (x0 > w0) rankx++;
-            else rankw++;
-            if (y0 > z0) ranky++;
-            else rankz++;
-            if (y0 > w0) ranky++;
-            else rankw++;
-            if (z0 > w0) rankz++;
-            else rankw++;
-            var i1, j1, k1, l1; // The integer offsets for the second simplex corner
-            var i2, j2, k2, l2; // The integer offsets for the third simplex corner
-            var i3, j3, k3, l3; // The integer offsets for the fourth simplex corner
-            // simplex[c] is a 4-vector with the numbers 0, 1, 2 and 3 in some order.
-            // Many values of c will never occur, since e.g. x>y>z>w makes x<z, y<w and x<w
-            // impossible. Only the 24 indices which have non-zero entries make any sense.
-            // We use a thresholding to set the coordinates in turn from the largest magnitude.
-            // Rank 3 denotes the largest coordinate.
-            i1 = rankx >= 3 ? 1 : 0;
-            j1 = ranky >= 3 ? 1 : 0;
-            k1 = rankz >= 3 ? 1 : 0;
-            l1 = rankw >= 3 ? 1 : 0;
-            // Rank 2 denotes the second largest coordinate.
-            i2 = rankx >= 2 ? 1 : 0;
-            j2 = ranky >= 2 ? 1 : 0;
-            k2 = rankz >= 2 ? 1 : 0;
-            l2 = rankw >= 2 ? 1 : 0;
-            // Rank 1 denotes the second smallest coordinate.
-            i3 = rankx >= 1 ? 1 : 0;
-            j3 = ranky >= 1 ? 1 : 0;
-            k3 = rankz >= 1 ? 1 : 0;
-            l3 = rankw >= 1 ? 1 : 0;
-            // The fifth corner has all coordinate offsets = 1, so no need to compute that.
-            var x1 = x0 - i1 + G4; // Offsets for second corner in (x,y,z,w) coords
-            var y1 = y0 - j1 + G4;
-            var z1 = z0 - k1 + G4;
-            var w1 = w0 - l1 + G4;
-            var x2 = x0 - i2 + 2 * G4; // Offsets for third corner in (x,y,z,w) coords
-            var y2 = y0 - j2 + 2 * G4;
-            var z2 = z0 - k2 + 2 * G4;
-            var w2 = w0 - l2 + 2 * G4;
-            var x3 = x0 - i3 + 3 * G4; // Offsets for fourth corner in (x,y,z,w) coords
-            var y3 = y0 - j3 + 3 * G4;
-            var z3 = z0 - k3 + 3 * G4;
-            var w3 = w0 - l3 + 3 * G4;
-            var x4 = x0 - 1 + 4 * G4; // Offsets for last corner in (x,y,z,w) coords
-            var y4 = y0 - 1 + 4 * G4;
-            var z4 = z0 - 1 + 4 * G4;
-            var w4 = w0 - 1 + 4 * G4;
-            // Work out the hashed gradient indices of the five simplex corners
-            var ii = i & 255;
-            var jj = j & 255;
-            var kk = k & 255;
-            var ll = l & 255;
-            // Calculate the contribution from the five corners
-            var t0 = 0.6 - x0 * x0 - y0 * y0 - z0 * z0 - w0 * w0;
-            if (t0 < 0) n0 = 0;
-            else {
-                var gi0 = perm[ii + perm[jj + perm[kk + perm[ll]]]] % 32 * 4;
-                t0 *= t0;
-                n0 = t0 * t0 * (grad4[gi0] * x0 + grad4[gi0 + 1] * y0 + grad4[gi0 + 2] * z0 + grad4[gi0 + 3] * w0);
-            }
-            var t1 = 0.6 - x1 * x1 - y1 * y1 - z1 * z1 - w1 * w1;
-            if (t1 < 0) n1 = 0;
-            else {
-                var gi1 = perm[ii + i1 + perm[jj + j1 + perm[kk + k1 + perm[ll + l1]]]] % 32 * 4;
-                t1 *= t1;
-                n1 = t1 * t1 * (grad4[gi1] * x1 + grad4[gi1 + 1] * y1 + grad4[gi1 + 2] * z1 + grad4[gi1 + 3] * w1);
-            }
-            var t2 = 0.6 - x2 * x2 - y2 * y2 - z2 * z2 - w2 * w2;
-            if (t2 < 0) n2 = 0;
-            else {
-                var gi2 = perm[ii + i2 + perm[jj + j2 + perm[kk + k2 + perm[ll + l2]]]] % 32 * 4;
-                t2 *= t2;
-                n2 = t2 * t2 * (grad4[gi2] * x2 + grad4[gi2 + 1] * y2 + grad4[gi2 + 2] * z2 + grad4[gi2 + 3] * w2);
-            }
-            var t3 = 0.6 - x3 * x3 - y3 * y3 - z3 * z3 - w3 * w3;
-            if (t3 < 0) n3 = 0;
-            else {
-                var gi3 = perm[ii + i3 + perm[jj + j3 + perm[kk + k3 + perm[ll + l3]]]] % 32 * 4;
-                t3 *= t3;
-                n3 = t3 * t3 * (grad4[gi3] * x3 + grad4[gi3 + 1] * y3 + grad4[gi3 + 2] * z3 + grad4[gi3 + 3] * w3);
-            }
-            var t4 = 0.6 - x4 * x4 - y4 * y4 - z4 * z4 - w4 * w4;
-            if (t4 < 0) n4 = 0;
-            else {
-                var gi4 = perm[ii + 1 + perm[jj + 1 + perm[kk + 1 + perm[ll + 1]]]] % 32 * 4;
-                t4 *= t4;
-                n4 = t4 * t4 * (grad4[gi4] * x4 + grad4[gi4 + 1] * y4 + grad4[gi4 + 2] * z4 + grad4[gi4 + 3] * w4);
-            }
-            // Sum up and scale the result to cover the range [-1,1]
-            return 27 * (n0 + n1 + n2 + n3 + n4);
-        }
-    };
-    function buildPermutationTable(random) {
-        var i;
-        var p = new Uint8Array(256);
-        for(i = 0; i < 256; i++)p[i] = i;
-        for(i = 0; i < 255; i++){
-            var r = i + ~~(random() * (256 - i));
-            var aux = p[i];
-            p[i] = p[r];
-            p[r] = aux;
-        }
-        return p;
-    }
-    SimplexNoise._buildPermutationTable = buildPermutationTable;
-    function alea() {
-        // Johannes Baagøe <baagoe@baagoe.com>, 2010
-        var s0 = 0;
-        var s1 = 0;
-        var s2 = 0;
-        var c = 1;
-        var mash = masher();
-        s0 = mash(' ');
-        s1 = mash(' ');
-        s2 = mash(' ');
-        for(var i = 0; i < arguments.length; i++){
-            s0 -= mash(arguments[i]);
-            if (s0 < 0) s0 += 1;
-            s1 -= mash(arguments[i]);
-            if (s1 < 0) s1 += 1;
-            s2 -= mash(arguments[i]);
-            if (s2 < 0) s2 += 1;
-        }
-        mash = null;
-        return function() {
-            var t = 2091639 * s0 + c * 0.00000000023283064365386963; // 2^-32
-            s0 = s1;
-            s1 = s2;
-            return s2 = t - (c = t | 0);
-        };
-    }
-    function masher() {
-        var n = 4022871197;
-        return function(data) {
-            data = data.toString();
-            for(var i = 0; i < data.length; i++){
-                n += data.charCodeAt(i);
-                var h = 0.02519603282416938 * n;
-                n = h >>> 0;
-                h -= n;
-                h *= n;
-                n = h >>> 0;
-                h -= n;
-                n += h * 4294967296; // 2^32
-            }
-            return (n >>> 0) * 0.00000000023283064365386963; // 2^-32
-        };
-    }
-    // amd
-    if (typeof define !== 'undefined' && define.amd) define(function() {
-        return SimplexNoise;
-    });
-    exports.SimplexNoise = SimplexNoise;
-    module.exports = SimplexNoise;
-})();
-
-},{}],"gdrFG":[function(require,module,exports) {
-module.exports = function() {
-    for(var i = 0; i < arguments.length; i++){
-        if (arguments[i] !== undefined) return arguments[i];
-    }
-};
-
-},{}],"2xQXu":[function(require,module,exports) {
-const { EventEmitter  } = require('events');
-module.exports = function createInputEvents(opt) {
-    if (opt == null) opt = window;
-    if (isDOMNode(opt)) opt = {
-        target: opt
-    };
-    const { target: target1 = window , parent =window , tapDistanceThreshold =10 , tapDelay =300 , preventDefault =false , filtered =true , passive =true  } = opt;
-    const eventOpts = passive ? {
-        passive: true
-    } : undefined;
-    const emitter = new EventEmitter();
-    let initialIdentifier;
-    let dragging = false;
-    let lastTime;
-    let lastPosition;
-    let attached = false;
-    attach();
-    emitter.enable = attach;
-    emitter.disable = detach;
-    Object.defineProperties(emitter, {
-        target: {
-            get () {
-                return target1;
-            }
-        },
-        parent: {
-            get () {
-                return parent;
-            }
-        }
-    });
-    return emitter;
-    function mousedown(event) {
-        // mark the drag event as having started
-        dragging = true;
-        const touch = getCurrentEvent(event);
-        const result = createEvent(event, touch, target1);
-        lastPosition = result.position.slice();
-        lastTime = Date.now();
-        emitter.emit('down', result);
-    }
-    function mouseup(event) {
-        const wasDragging = dragging;
-        const touch = getCurrentEvent(event);
-        let valid = true;
-        if (filtered && event.changedTouches && (!touch || touch.identifier !== initialIdentifier)) {
-            // skip entirely if this touch doesn't match expected
-            valid = false;
-        }
-        if (touch && valid) {
-            const result = createEvent(event, touch, target1);
-            initialIdentifier = null;
-            if (wasDragging || result.inside) {
-                // If the interaction was or is inside, emit an event
-                emitter.emit('up', result);
-            }
-            if (lastPosition != null) {
-                const nowTime = Date.now();
-                const delta = nowTime - lastTime;
-                const dist = distance(result.position, lastPosition);
-                if (delta <= tapDelay && dist < tapDistanceThreshold) {
-                    emitter.emit('tap', result);
+    render(deltaTime) {
+        // deltaTime value is in seconds
+        if (deltaTime === undefined) deltaTime = this.clock.getDelta();
+        const currentRenderTarget = this.renderer.getRenderTarget();
+        let maskActive = false;
+        for(let i = 0, il = this.passes.length; i < il; i++){
+            const pass = this.passes[i];
+            if (pass.enabled === false) continue;
+            pass.renderToScreen = this.renderToScreen && this.isLastEnabledPass(i);
+            pass.render(this.renderer, this.writeBuffer, this.readBuffer, deltaTime, maskActive);
+            if (pass.needsSwap) {
+                if (maskActive) {
+                    const context = this.renderer.getContext();
+                    const stencil = this.renderer.state.buffers.stencil;
+                    //context.stencilFunc( context.NOTEQUAL, 1, 0xffffffff );
+                    stencil.setFunc(context.NOTEQUAL, 1, 4294967295);
+                    this.copyPass.render(this.renderer, this.writeBuffer, this.readBuffer, deltaTime);
+                    //context.stencilFunc( context.EQUAL, 1, 0xffffffff );
+                    stencil.setFunc(context.EQUAL, 1, 4294967295);
                 }
-                lastPosition = null;
+                this.swapBuffers();
             }
-            dragging = false;
-        }
-    }
-    function mousemove(event) {
-        const touch = getCurrentEvent(event);
-        if (touch) {
-            // we didn't have an identifier and now we do
-            if (filtered && event.changedTouches && touch.identifier != null) {
-                const bounds = getElementBounds(target1);
-                if (isInsideBounds(touch, bounds)) {
-                    // ensure dragging is set to true
-                    dragging = true;
-                }
-            }
-            const result = createEvent(event, touch, target1);
-            if (dragging || result.inside) {
-                emitter.emit('move', result);
+            if (_maskPassJs.MaskPass !== undefined) {
+                if (pass instanceof _maskPassJs.MaskPass) maskActive = true;
+                else if (pass instanceof _maskPassJs.ClearMaskPass) maskActive = false;
             }
         }
+        this.renderer.setRenderTarget(currentRenderTarget);
     }
-    function attach() {
-        if (attached) return;
-        attached = true;
-        target1.addEventListener('touchstart', mousedown, eventOpts);
-        parent.addEventListener('touchend', mouseup, eventOpts);
-        parent.addEventListener('touchmove', mousemove, eventOpts);
-        target1.addEventListener('mousedown', mousedown, eventOpts);
-        parent.addEventListener('mouseup', mouseup, eventOpts);
-        parent.addEventListener('mousemove', mousemove, eventOpts);
-        if (preventDefault) {
-            window.addEventListener('dragstart', preventDefaultEvent, {
-                passive: false
-            });
-            document.addEventListener('touchmove', preventDefaultEvent, {
-                passive: false
-            });
+    reset(renderTarget) {
+        if (renderTarget === undefined) {
+            const size = this.renderer.getSize(new _three.Vector2());
+            this._pixelRatio = this.renderer.getPixelRatio();
+            this._width = size.width;
+            this._height = size.height;
+            renderTarget = this.renderTarget1.clone();
+            renderTarget.setSize(this._width * this._pixelRatio, this._height * this._pixelRatio);
         }
+        this.renderTarget1.dispose();
+        this.renderTarget2.dispose();
+        this.renderTarget1 = renderTarget;
+        this.renderTarget2 = renderTarget.clone();
+        this.writeBuffer = this.renderTarget1;
+        this.readBuffer = this.renderTarget2;
     }
-    function detach() {
-        if (!attached) return;
-        attached = false;
-        target1.removeEventListener('touchstart', mousedown);
-        parent.removeEventListener('touchend', mouseup);
-        parent.removeEventListener('touchmove', mousemove);
-        target1.removeEventListener('mousedown', mousedown);
-        parent.removeEventListener('mouseup', mouseup);
-        parent.removeEventListener('mousemove', mousemove);
-        if (preventDefault) {
-            window.removeEventListener('dragstart', preventDefaultEvent);
-            document.removeEventListener('touchmove', preventDefaultEvent);
-        }
+    setSize(width, height) {
+        this._width = width;
+        this._height = height;
+        const effectiveWidth = this._width * this._pixelRatio;
+        const effectiveHeight = this._height * this._pixelRatio;
+        this.renderTarget1.setSize(effectiveWidth, effectiveHeight);
+        this.renderTarget2.setSize(effectiveWidth, effectiveHeight);
+        for(let i = 0; i < this.passes.length; i++)this.passes[i].setSize(effectiveWidth, effectiveHeight);
     }
-    function preventDefaultEvent(ev) {
-        ev.preventDefault();
-        return false;
+    setPixelRatio(pixelRatio) {
+        this._pixelRatio = pixelRatio;
+        this.setSize(this._width, this._height);
     }
-    function getCurrentEvent(event) {
-        if (event.changedTouches) {
-            const list = event.changedTouches;
-            if (filtered) {
-                if (initialIdentifier == null) {
-                    // first time tracking, mark identifier
-                    const first = getFirstTargetTouch(list) || list[0];
-                    initialIdentifier = first.identifier;
-                    return first;
-                } else {
-                    // identifier exists, try to get it
-                    return getTouch(list, initialIdentifier);
-                }
-            } else {
-                return list[0];
-            }
-        } else {
-            return event;
-        }
-    }
-    function getFirstTargetTouch(touches) {
-        for(let i = 0; i < touches.length; i++){
-            const t = touches[i];
-            if (t.target === target1) return t;
-        }
-        return null;
-    }
-    function getTouch(touches, id) {
-        for(let i = 0; i < touches.length; i++){
-            const t = touches[i];
-            if (t.identifier === id) {
-                return t;
-            }
-        }
-        return null;
-    }
-    function createEvent(event, touch, target) {
-        const bounds = getElementBounds(target);
-        const position = getPosition(touch, target, bounds);
-        const uv = getNormalizedPosition(position, bounds);
-        return {
-            dragging,
-            touch,
-            inside: isInsideBounds(touch, bounds),
-            position,
-            uv,
-            event,
-            bounds
-        };
-    }
-};
-function distance(a, b) {
-    const x = b[0] - a[0];
-    const y = b[1] - a[1];
-    return Math.sqrt(x * x + y * y);
 }
-function isInsideBounds(event, bounds) {
-    const { clientX , clientY  } = event;
-    return clientX >= bounds.left && clientX < bounds.right && clientY >= bounds.top && clientY < bounds.bottom;
+class Pass {
+    constructor(){
+        // if set to true, the pass is processed by the composer
+        this.enabled = true;
+        // if set to true, the pass indicates to swap read and write buffer after rendering
+        this.needsSwap = true;
+        // if set to true, the pass clears its buffer before rendering
+        this.clear = false;
+        // if set to true, the result of the pass is rendered to screen. This is set automatically by EffectComposer.
+        this.renderToScreen = false;
+    }
+    setSize() {}
+    render() {
+        console.error('THREE.Pass: .render() must be implemented in derived pass.');
+    }
 }
-function getNormalizedPosition(position, bounds) {
-    return [
-        position[0] / bounds.width,
-        position[1] / bounds.height
-    ];
-}
-function getPosition(event, target, bounds) {
-    const { clientX , clientY  } = event;
-    const x = clientX - bounds.left;
-    const y = clientY - bounds.top;
-    return [
-        x,
-        y
-    ];
-}
-function getElementBounds(element) {
-    if (element === window || element === document || element === document.body) return {
-        x: 0,
-        y: 0,
-        left: 0,
-        top: 0,
-        right: window.innerWidth,
-        bottom: window.innerHeight,
-        width: window.innerWidth,
-        height: window.innerHeight
-    };
-    else return element.getBoundingClientRect();
-}
-function isDOMNode(obj) {
-    if (!obj || obj == null) return false;
-    const winEl = typeof window !== 'undefined' ? window : null;
-    return obj === winEl || typeof obj.nodeType === 'number' && typeof obj.nodeName === 'string';
+// Helper for passes that need to fill the viewport with a single quad.
+const _camera = new _three.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+// https://github.com/mrdoob/three.js/pull/21358
+const _geometry = new _three.BufferGeometry();
+_geometry.setAttribute('position', new _three.Float32BufferAttribute([
+    -1,
+    3,
+    0,
+    -1,
+    -1,
+    0,
+    3,
+    -1,
+    0
+], 3));
+_geometry.setAttribute('uv', new _three.Float32BufferAttribute([
+    0,
+    2,
+    0,
+    0,
+    2,
+    0
+], 2));
+class FullScreenQuad {
+    constructor(material){
+        this._mesh = new _three.Mesh(_geometry, material);
+    }
+    dispose() {
+        this._mesh.geometry.dispose();
+    }
+    render(renderer) {
+        renderer.render(this._mesh, _camera);
+    }
+    get material() {
+        return this._mesh.material;
+    }
+    set material(value) {
+        this._mesh.material = value;
+    }
 }
 
-},{"events":"1VQLm"}],"1VQLm":[function(require,module,exports) {
-// Copyright Joyent, Inc. and other Node contributors.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a
-// copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to permit
-// persons to whom the Software is furnished to do so, subject to the
-// following conditions:
-//
-// The above copyright notice and this permission notice shall be included
-// in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
-// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-// USE OR OTHER DEALINGS IN THE SOFTWARE.
-'use strict';
-var R = typeof Reflect === 'object' ? Reflect : null;
-var ReflectApply = R && typeof R.apply === 'function' ? R.apply : function ReflectApply(target, receiver, args) {
-    return Function.prototype.apply.call(target, receiver, args);
-};
-var ReflectOwnKeys;
-if (R && typeof R.ownKeys === 'function') ReflectOwnKeys = R.ownKeys;
-else if (Object.getOwnPropertySymbols) ReflectOwnKeys = function ReflectOwnKeys(target) {
-    return Object.getOwnPropertyNames(target).concat(Object.getOwnPropertySymbols(target));
-};
-else ReflectOwnKeys = function ReflectOwnKeys(target) {
-    return Object.getOwnPropertyNames(target);
-};
-function ProcessEmitWarning(warning) {
-    if (console && console.warn) console.warn(warning);
-}
-var NumberIsNaN = Number.isNaN || function NumberIsNaN(value) {
-    return value !== value;
-};
-function EventEmitter() {
-    EventEmitter.init.call(this);
-}
-module.exports = EventEmitter;
-module.exports.once = once;
-// Backwards-compat with node 0.10.x
-EventEmitter.EventEmitter = EventEmitter;
-EventEmitter.prototype._events = undefined;
-EventEmitter.prototype._eventsCount = 0;
-EventEmitter.prototype._maxListeners = undefined;
-// By default EventEmitters will print a warning if more than 10 listeners are
-// added to it. This is a useful default which helps finding memory leaks.
-var defaultMaxListeners = 10;
-function checkListener(listener) {
-    if (typeof listener !== 'function') throw new TypeError('The "listener" argument must be of type Function. Received type ' + typeof listener);
-}
-Object.defineProperty(EventEmitter, 'defaultMaxListeners', {
-    enumerable: true,
-    get: function() {
-        return defaultMaxListeners;
+},{"three":"ktPTu","../shaders/CopyShader.js":"d0PyX","./ShaderPass.js":"5IxTN","./MaskPass.js":"jn76N","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"d0PyX":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "CopyShader", ()=>CopyShader
+);
+/**
+ * Full-screen textured quad shader
+ */ const CopyShader = {
+    uniforms: {
+        'tDiffuse': {
+            value: null
+        },
+        'opacity': {
+            value: 1
+        }
     },
-    set: function(arg) {
-        if (typeof arg !== 'number' || arg < 0 || NumberIsNaN(arg)) throw new RangeError('The value of "defaultMaxListeners" is out of range. It must be a non-negative number. Received ' + arg + '.');
-        defaultMaxListeners = arg;
-    }
-});
-EventEmitter.init = function() {
-    if (this._events === undefined || this._events === Object.getPrototypeOf(this)._events) {
-        this._events = Object.create(null);
-        this._eventsCount = 0;
-    }
-    this._maxListeners = this._maxListeners || undefined;
+    vertexShader: /* glsl */ `
+
+		varying vec2 vUv;
+
+		void main() {
+
+			vUv = uv;
+			gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+		}`,
+    fragmentShader: /* glsl */ `
+
+		uniform float opacity;
+
+		uniform sampler2D tDiffuse;
+
+		varying vec2 vUv;
+
+		void main() {
+
+			vec4 texel = texture2D( tDiffuse, vUv );
+			gl_FragColor = opacity * texel;
+
+		}`
 };
-// Obviously not all Emitters should be limited to 10. This function allows
-// that to be increased. Set to zero for unlimited.
-EventEmitter.prototype.setMaxListeners = function setMaxListeners(n) {
-    if (typeof n !== 'number' || n < 0 || NumberIsNaN(n)) throw new RangeError('The value of "n" is out of range. It must be a non-negative number. Received ' + n + '.');
-    this._maxListeners = n;
-    return this;
-};
-function _getMaxListeners(that) {
-    if (that._maxListeners === undefined) return EventEmitter.defaultMaxListeners;
-    return that._maxListeners;
-}
-EventEmitter.prototype.getMaxListeners = function getMaxListeners() {
-    return _getMaxListeners(this);
-};
-EventEmitter.prototype.emit = function emit(type) {
-    var args = [];
-    for(var i = 1; i < arguments.length; i++)args.push(arguments[i]);
-    var doError = type === 'error';
-    var events = this._events;
-    if (events !== undefined) doError = doError && events.error === undefined;
-    else if (!doError) return false;
-    // If there is no 'error' event listener then throw.
-    if (doError) {
-        var er;
-        if (args.length > 0) er = args[0];
-        if (er instanceof Error) // Note: The comments on the `throw` lines are intentional, they show
-        // up in Node's output if this results in an unhandled exception.
-        throw er; // Unhandled 'error' event
-        // At least give some kind of context to the user
-        var err = new Error('Unhandled error.' + (er ? ' (' + er.message + ')' : ''));
-        err.context = er;
-        throw err; // Unhandled 'error' event
-    }
-    var handler = events[type];
-    if (handler === undefined) return false;
-    if (typeof handler === 'function') ReflectApply(handler, this, args);
-    else {
-        var len = handler.length;
-        var listeners = arrayClone(handler, len);
-        for(var i = 0; i < len; ++i)ReflectApply(listeners[i], this, args);
-    }
-    return true;
-};
-function _addListener(target, type, listener, prepend) {
-    var m;
-    var events;
-    var existing;
-    checkListener(listener);
-    events = target._events;
-    if (events === undefined) {
-        events = target._events = Object.create(null);
-        target._eventsCount = 0;
-    } else {
-        // To avoid recursion in the case that type === "newListener"! Before
-        // adding it to the listeners, first emit "newListener".
-        if (events.newListener !== undefined) {
-            target.emit('newListener', type, listener.listener ? listener.listener : listener);
-            // Re-assign `events` because a newListener handler could have caused the
-            // this._events to be assigned to a new object
-            events = target._events;
+
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"5IxTN":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "ShaderPass", ()=>ShaderPass
+);
+var _three = require("three");
+var _passJs = require("./Pass.js");
+class ShaderPass extends _passJs.Pass {
+    constructor(shader, textureID){
+        super();
+        this.textureID = textureID !== undefined ? textureID : 'tDiffuse';
+        if (shader instanceof _three.ShaderMaterial) {
+            this.uniforms = shader.uniforms;
+            this.material = shader;
+        } else if (shader) {
+            this.uniforms = _three.UniformsUtils.clone(shader.uniforms);
+            this.material = new _three.ShaderMaterial({
+                defines: Object.assign({}, shader.defines),
+                uniforms: this.uniforms,
+                vertexShader: shader.vertexShader,
+                fragmentShader: shader.fragmentShader
+            });
         }
-        existing = events[type];
+        this.fsQuad = new _passJs.FullScreenQuad(this.material);
     }
-    if (existing === undefined) {
-        // Optimize the case of one listener. Don't need the extra array object.
-        existing = events[type] = listener;
-        ++target._eventsCount;
-    } else {
-        if (typeof existing === 'function') // Adding the second element, need to change to array.
-        existing = events[type] = prepend ? [
-            listener,
-            existing
-        ] : [
-            existing,
-            listener
-        ];
-        else if (prepend) existing.unshift(listener);
-        else existing.push(listener);
-        // Check for listener leak
-        m = _getMaxListeners(target);
-        if (m > 0 && existing.length > m && !existing.warned) {
-            existing.warned = true;
-            // No error code for this since it is a Warning
-            // eslint-disable-next-line no-restricted-syntax
-            var w = new Error('Possible EventEmitter memory leak detected. ' + existing.length + ' ' + String(type) + ' listeners ' + 'added. Use emitter.setMaxListeners() to ' + 'increase limit');
-            w.name = 'MaxListenersExceededWarning';
-            w.emitter = target;
-            w.type = type;
-            w.count = existing.length;
-            ProcessEmitWarning(w);
+    render(renderer, writeBuffer, readBuffer /*, deltaTime, maskActive */ ) {
+        if (this.uniforms[this.textureID]) this.uniforms[this.textureID].value = readBuffer.texture;
+        this.fsQuad.material = this.material;
+        if (this.renderToScreen) {
+            renderer.setRenderTarget(null);
+            this.fsQuad.render(renderer);
+        } else {
+            renderer.setRenderTarget(writeBuffer);
+            // TODO: Avoid using autoClear properties, see https://github.com/mrdoob/three.js/pull/15571#issuecomment-465669600
+            if (this.clear) renderer.clear(renderer.autoClearColor, renderer.autoClearDepth, renderer.autoClearStencil);
+            this.fsQuad.render(renderer);
         }
     }
-    return target;
-}
-EventEmitter.prototype.addListener = function addListener(type, listener) {
-    return _addListener(this, type, listener, false);
-};
-EventEmitter.prototype.on = EventEmitter.prototype.addListener;
-EventEmitter.prototype.prependListener = function prependListener(type, listener) {
-    return _addListener(this, type, listener, true);
-};
-function onceWrapper() {
-    if (!this.fired) {
-        this.target.removeListener(this.type, this.wrapFn);
-        this.fired = true;
-        if (arguments.length === 0) return this.listener.call(this.target);
-        return this.listener.apply(this.target, arguments);
-    }
-}
-function _onceWrap(target, type, listener) {
-    var state = {
-        fired: false,
-        wrapFn: undefined,
-        target: target,
-        type: type,
-        listener: listener
-    };
-    var wrapped = onceWrapper.bind(state);
-    wrapped.listener = listener;
-    state.wrapFn = wrapped;
-    return wrapped;
-}
-EventEmitter.prototype.once = function once(type, listener) {
-    checkListener(listener);
-    this.on(type, _onceWrap(this, type, listener));
-    return this;
-};
-EventEmitter.prototype.prependOnceListener = function prependOnceListener(type, listener) {
-    checkListener(listener);
-    this.prependListener(type, _onceWrap(this, type, listener));
-    return this;
-};
-// Emits a 'removeListener' event if and only if the listener was removed.
-EventEmitter.prototype.removeListener = function removeListener(type, listener) {
-    var list, events, position, i, originalListener;
-    checkListener(listener);
-    events = this._events;
-    if (events === undefined) return this;
-    list = events[type];
-    if (list === undefined) return this;
-    if (list === listener || list.listener === listener) {
-        if (--this._eventsCount === 0) this._events = Object.create(null);
-        else {
-            delete events[type];
-            if (events.removeListener) this.emit('removeListener', type, list.listener || listener);
-        }
-    } else if (typeof list !== 'function') {
-        position = -1;
-        for(i = list.length - 1; i >= 0; i--)if (list[i] === listener || list[i].listener === listener) {
-            originalListener = list[i].listener;
-            position = i;
-            break;
-        }
-        if (position < 0) return this;
-        if (position === 0) list.shift();
-        else spliceOne(list, position);
-        if (list.length === 1) events[type] = list[0];
-        if (events.removeListener !== undefined) this.emit('removeListener', type, originalListener || listener);
-    }
-    return this;
-};
-EventEmitter.prototype.off = EventEmitter.prototype.removeListener;
-EventEmitter.prototype.removeAllListeners = function removeAllListeners(type) {
-    var listeners, events, i;
-    events = this._events;
-    if (events === undefined) return this;
-    // not listening for removeListener, no need to emit
-    if (events.removeListener === undefined) {
-        if (arguments.length === 0) {
-            this._events = Object.create(null);
-            this._eventsCount = 0;
-        } else if (events[type] !== undefined) {
-            if (--this._eventsCount === 0) this._events = Object.create(null);
-            else delete events[type];
-        }
-        return this;
-    }
-    // emit removeListener for all listeners on all events
-    if (arguments.length === 0) {
-        var keys = Object.keys(events);
-        var key;
-        for(i = 0; i < keys.length; ++i){
-            key = keys[i];
-            if (key === 'removeListener') continue;
-            this.removeAllListeners(key);
-        }
-        this.removeAllListeners('removeListener');
-        this._events = Object.create(null);
-        this._eventsCount = 0;
-        return this;
-    }
-    listeners = events[type];
-    if (typeof listeners === 'function') this.removeListener(type, listeners);
-    else if (listeners !== undefined) // LIFO order
-    for(i = listeners.length - 1; i >= 0; i--)this.removeListener(type, listeners[i]);
-    return this;
-};
-function _listeners(target, type, unwrap) {
-    var events = target._events;
-    if (events === undefined) return [];
-    var evlistener = events[type];
-    if (evlistener === undefined) return [];
-    if (typeof evlistener === 'function') return unwrap ? [
-        evlistener.listener || evlistener
-    ] : [
-        evlistener
-    ];
-    return unwrap ? unwrapListeners(evlistener) : arrayClone(evlistener, evlistener.length);
-}
-EventEmitter.prototype.listeners = function listeners(type) {
-    return _listeners(this, type, true);
-};
-EventEmitter.prototype.rawListeners = function rawListeners(type) {
-    return _listeners(this, type, false);
-};
-EventEmitter.listenerCount = function(emitter, type) {
-    if (typeof emitter.listenerCount === 'function') return emitter.listenerCount(type);
-    else return listenerCount.call(emitter, type);
-};
-EventEmitter.prototype.listenerCount = listenerCount;
-function listenerCount(type) {
-    var events = this._events;
-    if (events !== undefined) {
-        var evlistener = events[type];
-        if (typeof evlistener === 'function') return 1;
-        else if (evlistener !== undefined) return evlistener.length;
-    }
-    return 0;
-}
-EventEmitter.prototype.eventNames = function eventNames() {
-    return this._eventsCount > 0 ? ReflectOwnKeys(this._events) : [];
-};
-function arrayClone(arr, n) {
-    var copy = new Array(n);
-    for(var i = 0; i < n; ++i)copy[i] = arr[i];
-    return copy;
-}
-function spliceOne(list, index) {
-    for(; index + 1 < list.length; index++)list[index] = list[index + 1];
-    list.pop();
-}
-function unwrapListeners(arr) {
-    var ret = new Array(arr.length);
-    for(var i = 0; i < ret.length; ++i)ret[i] = arr[i].listener || arr[i];
-    return ret;
-}
-function once(emitter, name) {
-    return new Promise(function(resolve, reject) {
-        function errorListener(err) {
-            emitter.removeListener(name, resolver);
-            reject(err);
-        }
-        function resolver() {
-            if (typeof emitter.removeListener === 'function') emitter.removeListener('error', errorListener);
-            resolve([].slice.call(arguments));
-        }
-        eventTargetAgnosticAddListener(emitter, name, resolver, {
-            once: true
-        });
-        if (name !== 'error') addErrorHandlerIfEventEmitter(emitter, errorListener, {
-            once: true
-        });
-    });
-}
-function addErrorHandlerIfEventEmitter(emitter, handler, flags) {
-    if (typeof emitter.on === 'function') eventTargetAgnosticAddListener(emitter, 'error', handler, flags);
-}
-function eventTargetAgnosticAddListener(emitter, name, listener, flags) {
-    if (typeof emitter.on === 'function') {
-        if (flags.once) emitter.once(name, listener);
-        else emitter.on(name, listener);
-    } else if (typeof emitter.addEventListener === 'function') // EventTarget does not have `error` event semantics like Node
-    // EventEmitters, we do not listen for `error` events here.
-    emitter.addEventListener(name, function wrapListener(arg) {
-        // IE does not have builtin `{ once: true }` support so we
-        // have to do it manually.
-        if (flags.once) emitter.removeEventListener(name, wrapListener);
-        listener(arg);
-    });
-    else throw new TypeError('The "emitter" argument must be of type EventEmitter. Received type ' + typeof emitter);
 }
 
-},{}]},["44WRj","5AKj5"], "5AKj5", "parcelRequire94c2")
+},{"three":"ktPTu","./Pass.js":"i2IfB","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"i2IfB":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "Pass", ()=>Pass
+);
+parcelHelpers.export(exports, "FullScreenQuad", ()=>FullScreenQuad
+);
+var _three = require("three");
+class Pass {
+    constructor(){
+        // if set to true, the pass is processed by the composer
+        this.enabled = true;
+        // if set to true, the pass indicates to swap read and write buffer after rendering
+        this.needsSwap = true;
+        // if set to true, the pass clears its buffer before rendering
+        this.clear = false;
+        // if set to true, the result of the pass is rendered to screen. This is set automatically by EffectComposer.
+        this.renderToScreen = false;
+    }
+    setSize() {}
+    render() {
+        console.error('THREE.Pass: .render() must be implemented in derived pass.');
+    }
+}
+// Helper for passes that need to fill the viewport with a single quad.
+const _camera = new _three.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+// https://github.com/mrdoob/three.js/pull/21358
+const _geometry = new _three.BufferGeometry();
+_geometry.setAttribute('position', new _three.Float32BufferAttribute([
+    -1,
+    3,
+    0,
+    -1,
+    -1,
+    0,
+    3,
+    -1,
+    0
+], 3));
+_geometry.setAttribute('uv', new _three.Float32BufferAttribute([
+    0,
+    2,
+    0,
+    0,
+    2,
+    0
+], 2));
+class FullScreenQuad {
+    constructor(material){
+        this._mesh = new _three.Mesh(_geometry, material);
+    }
+    dispose() {
+        this._mesh.geometry.dispose();
+    }
+    render(renderer) {
+        renderer.render(this._mesh, _camera);
+    }
+    get material() {
+        return this._mesh.material;
+    }
+    set material(value) {
+        this._mesh.material = value;
+    }
+}
+
+},{"three":"ktPTu","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"jn76N":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "MaskPass", ()=>MaskPass
+);
+parcelHelpers.export(exports, "ClearMaskPass", ()=>ClearMaskPass
+);
+var _passJs = require("./Pass.js");
+class MaskPass extends _passJs.Pass {
+    constructor(scene, camera){
+        super();
+        this.scene = scene;
+        this.camera = camera;
+        this.clear = true;
+        this.needsSwap = false;
+        this.inverse = false;
+    }
+    render(renderer, writeBuffer, readBuffer /*, deltaTime, maskActive */ ) {
+        const context = renderer.getContext();
+        const state = renderer.state;
+        // don't update color or depth
+        state.buffers.color.setMask(false);
+        state.buffers.depth.setMask(false);
+        // lock buffers
+        state.buffers.color.setLocked(true);
+        state.buffers.depth.setLocked(true);
+        // set up stencil
+        let writeValue, clearValue;
+        if (this.inverse) {
+            writeValue = 0;
+            clearValue = 1;
+        } else {
+            writeValue = 1;
+            clearValue = 0;
+        }
+        state.buffers.stencil.setTest(true);
+        state.buffers.stencil.setOp(context.REPLACE, context.REPLACE, context.REPLACE);
+        state.buffers.stencil.setFunc(context.ALWAYS, writeValue, 4294967295);
+        state.buffers.stencil.setClear(clearValue);
+        state.buffers.stencil.setLocked(true);
+        // draw into the stencil buffer
+        renderer.setRenderTarget(readBuffer);
+        if (this.clear) renderer.clear();
+        renderer.render(this.scene, this.camera);
+        renderer.setRenderTarget(writeBuffer);
+        if (this.clear) renderer.clear();
+        renderer.render(this.scene, this.camera);
+        // unlock color and depth buffer for subsequent rendering
+        state.buffers.color.setLocked(false);
+        state.buffers.depth.setLocked(false);
+        // only render where stencil is set to 1
+        state.buffers.stencil.setLocked(false);
+        state.buffers.stencil.setFunc(context.EQUAL, 1, 4294967295); // draw if == 1
+        state.buffers.stencil.setOp(context.KEEP, context.KEEP, context.KEEP);
+        state.buffers.stencil.setLocked(true);
+    }
+}
+class ClearMaskPass extends _passJs.Pass {
+    constructor(){
+        super();
+        this.needsSwap = false;
+    }
+    render(renderer /*, writeBuffer, readBuffer, deltaTime, maskActive */ ) {
+        renderer.state.buffers.stencil.setLocked(false);
+        renderer.state.buffers.stencil.setTest(false);
+    }
+}
+
+},{"./Pass.js":"i2IfB","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"hXnUO":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "RenderPass", ()=>RenderPass
+);
+var _three = require("three");
+var _passJs = require("./Pass.js");
+class RenderPass extends _passJs.Pass {
+    constructor(scene, camera, overrideMaterial, clearColor, clearAlpha){
+        super();
+        this.scene = scene;
+        this.camera = camera;
+        this.overrideMaterial = overrideMaterial;
+        this.clearColor = clearColor;
+        this.clearAlpha = clearAlpha !== undefined ? clearAlpha : 0;
+        this.clear = true;
+        this.clearDepth = false;
+        this.needsSwap = false;
+        this._oldClearColor = new _three.Color();
+    }
+    render(renderer, writeBuffer, readBuffer /*, deltaTime, maskActive */ ) {
+        const oldAutoClear = renderer.autoClear;
+        renderer.autoClear = false;
+        let oldClearAlpha, oldOverrideMaterial;
+        if (this.overrideMaterial !== undefined) {
+            oldOverrideMaterial = this.scene.overrideMaterial;
+            this.scene.overrideMaterial = this.overrideMaterial;
+        }
+        if (this.clearColor) {
+            renderer.getClearColor(this._oldClearColor);
+            oldClearAlpha = renderer.getClearAlpha();
+            renderer.setClearColor(this.clearColor, this.clearAlpha);
+        }
+        if (this.clearDepth) renderer.clearDepth();
+        renderer.setRenderTarget(this.renderToScreen ? null : readBuffer);
+        // TODO: Avoid using autoClear properties, see https://github.com/mrdoob/three.js/pull/15571#issuecomment-465669600
+        if (this.clear) renderer.clear(renderer.autoClearColor, renderer.autoClearDepth, renderer.autoClearStencil);
+        renderer.render(this.scene, this.camera);
+        if (this.clearColor) renderer.setClearColor(this._oldClearColor, oldClearAlpha);
+        if (this.overrideMaterial !== undefined) this.scene.overrideMaterial = oldOverrideMaterial;
+        renderer.autoClear = oldAutoClear;
+    }
+}
+
+},{"three":"ktPTu","./Pass.js":"i2IfB","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"3iDYE":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "UnrealBloomPass", ()=>UnrealBloomPass
+);
+var _three = require("three");
+var _passJs = require("./Pass.js");
+var _copyShaderJs = require("../shaders/CopyShader.js");
+var _luminosityHighPassShaderJs = require("../shaders/LuminosityHighPassShader.js");
+/**
+ * UnrealBloomPass is inspired by the bloom pass of Unreal Engine. It creates a
+ * mip map chain of bloom textures and blurs them with different radii. Because
+ * of the weighted combination of mips, and because larger blurs are done on
+ * higher mips, this effect provides good quality and performance.
+ *
+ * Reference:
+ * - https://docs.unrealengine.com/latest/INT/Engine/Rendering/PostProcessEffects/Bloom/
+ */ class UnrealBloomPass extends _passJs.Pass {
+    constructor(resolution, strength, radius, threshold){
+        super();
+        this.strength = strength !== undefined ? strength : 1;
+        this.radius = radius;
+        this.threshold = threshold;
+        this.resolution = resolution !== undefined ? new _three.Vector2(resolution.x, resolution.y) : new _three.Vector2(256, 256);
+        // create color only once here, reuse it later inside the render function
+        this.clearColor = new _three.Color(0, 0, 0);
+        // render targets
+        const pars = {
+            minFilter: _three.LinearFilter,
+            magFilter: _three.LinearFilter,
+            format: _three.RGBAFormat
+        };
+        this.renderTargetsHorizontal = [];
+        this.renderTargetsVertical = [];
+        this.nMips = 5;
+        let resx = Math.round(this.resolution.x / 2);
+        let resy = Math.round(this.resolution.y / 2);
+        this.renderTargetBright = new _three.WebGLRenderTarget(resx, resy, pars);
+        this.renderTargetBright.texture.name = 'UnrealBloomPass.bright';
+        this.renderTargetBright.texture.generateMipmaps = false;
+        for(let i = 0; i < this.nMips; i++){
+            const renderTargetHorizonal = new _three.WebGLRenderTarget(resx, resy, pars);
+            renderTargetHorizonal.texture.name = 'UnrealBloomPass.h' + i;
+            renderTargetHorizonal.texture.generateMipmaps = false;
+            this.renderTargetsHorizontal.push(renderTargetHorizonal);
+            const renderTargetVertical = new _three.WebGLRenderTarget(resx, resy, pars);
+            renderTargetVertical.texture.name = 'UnrealBloomPass.v' + i;
+            renderTargetVertical.texture.generateMipmaps = false;
+            this.renderTargetsVertical.push(renderTargetVertical);
+            resx = Math.round(resx / 2);
+            resy = Math.round(resy / 2);
+        }
+        // luminosity high pass material
+        if (_luminosityHighPassShaderJs.LuminosityHighPassShader === undefined) console.error('THREE.UnrealBloomPass relies on LuminosityHighPassShader');
+        const highPassShader = _luminosityHighPassShaderJs.LuminosityHighPassShader;
+        this.highPassUniforms = _three.UniformsUtils.clone(highPassShader.uniforms);
+        this.highPassUniforms['luminosityThreshold'].value = threshold;
+        this.highPassUniforms['smoothWidth'].value = 0.01;
+        this.materialHighPassFilter = new _three.ShaderMaterial({
+            uniforms: this.highPassUniforms,
+            vertexShader: highPassShader.vertexShader,
+            fragmentShader: highPassShader.fragmentShader,
+            defines: {}
+        });
+        // Gaussian Blur Materials
+        this.separableBlurMaterials = [];
+        const kernelSizeArray = [
+            3,
+            5,
+            7,
+            9,
+            11
+        ];
+        resx = Math.round(this.resolution.x / 2);
+        resy = Math.round(this.resolution.y / 2);
+        for(let i1 = 0; i1 < this.nMips; i1++){
+            this.separableBlurMaterials.push(this.getSeperableBlurMaterial(kernelSizeArray[i1]));
+            this.separableBlurMaterials[i1].uniforms['texSize'].value = new _three.Vector2(resx, resy);
+            resx = Math.round(resx / 2);
+            resy = Math.round(resy / 2);
+        }
+        // Composite material
+        this.compositeMaterial = this.getCompositeMaterial(this.nMips);
+        this.compositeMaterial.uniforms['blurTexture1'].value = this.renderTargetsVertical[0].texture;
+        this.compositeMaterial.uniforms['blurTexture2'].value = this.renderTargetsVertical[1].texture;
+        this.compositeMaterial.uniforms['blurTexture3'].value = this.renderTargetsVertical[2].texture;
+        this.compositeMaterial.uniforms['blurTexture4'].value = this.renderTargetsVertical[3].texture;
+        this.compositeMaterial.uniforms['blurTexture5'].value = this.renderTargetsVertical[4].texture;
+        this.compositeMaterial.uniforms['bloomStrength'].value = strength;
+        this.compositeMaterial.uniforms['bloomRadius'].value = 0.1;
+        this.compositeMaterial.needsUpdate = true;
+        const bloomFactors = [
+            1,
+            0.8,
+            0.6,
+            0.4,
+            0.2
+        ];
+        this.compositeMaterial.uniforms['bloomFactors'].value = bloomFactors;
+        this.bloomTintColors = [
+            new _three.Vector3(1, 1, 1),
+            new _three.Vector3(1, 1, 1),
+            new _three.Vector3(1, 1, 1),
+            new _three.Vector3(1, 1, 1),
+            new _three.Vector3(1, 1, 1)
+        ];
+        this.compositeMaterial.uniforms['bloomTintColors'].value = this.bloomTintColors;
+        // copy material
+        if (_copyShaderJs.CopyShader === undefined) console.error('THREE.UnrealBloomPass relies on CopyShader');
+        const copyShader = _copyShaderJs.CopyShader;
+        this.copyUniforms = _three.UniformsUtils.clone(copyShader.uniforms);
+        this.copyUniforms['opacity'].value = 1;
+        this.materialCopy = new _three.ShaderMaterial({
+            uniforms: this.copyUniforms,
+            vertexShader: copyShader.vertexShader,
+            fragmentShader: copyShader.fragmentShader,
+            blending: _three.AdditiveBlending,
+            depthTest: false,
+            depthWrite: false,
+            transparent: true
+        });
+        this.enabled = true;
+        this.needsSwap = false;
+        this._oldClearColor = new _three.Color();
+        this.oldClearAlpha = 1;
+        this.basic = new _three.MeshBasicMaterial();
+        this.fsQuad = new _passJs.FullScreenQuad(null);
+    }
+    dispose() {
+        for(let i = 0; i < this.renderTargetsHorizontal.length; i++)this.renderTargetsHorizontal[i].dispose();
+        for(let i2 = 0; i2 < this.renderTargetsVertical.length; i2++)this.renderTargetsVertical[i2].dispose();
+        this.renderTargetBright.dispose();
+    }
+    setSize(width, height) {
+        let resx = Math.round(width / 2);
+        let resy = Math.round(height / 2);
+        this.renderTargetBright.setSize(resx, resy);
+        for(let i = 0; i < this.nMips; i++){
+            this.renderTargetsHorizontal[i].setSize(resx, resy);
+            this.renderTargetsVertical[i].setSize(resx, resy);
+            this.separableBlurMaterials[i].uniforms['texSize'].value = new _three.Vector2(resx, resy);
+            resx = Math.round(resx / 2);
+            resy = Math.round(resy / 2);
+        }
+    }
+    render(renderer, writeBuffer, readBuffer, deltaTime, maskActive) {
+        renderer.getClearColor(this._oldClearColor);
+        this.oldClearAlpha = renderer.getClearAlpha();
+        const oldAutoClear = renderer.autoClear;
+        renderer.autoClear = false;
+        renderer.setClearColor(this.clearColor, 0);
+        if (maskActive) renderer.state.buffers.stencil.setTest(false);
+        // Render input to screen
+        if (this.renderToScreen) {
+            this.fsQuad.material = this.basic;
+            this.basic.map = readBuffer.texture;
+            renderer.setRenderTarget(null);
+            renderer.clear();
+            this.fsQuad.render(renderer);
+        }
+        // 1. Extract Bright Areas
+        this.highPassUniforms['tDiffuse'].value = readBuffer.texture;
+        this.highPassUniforms['luminosityThreshold'].value = this.threshold;
+        this.fsQuad.material = this.materialHighPassFilter;
+        renderer.setRenderTarget(this.renderTargetBright);
+        renderer.clear();
+        this.fsQuad.render(renderer);
+        // 2. Blur All the mips progressively
+        let inputRenderTarget = this.renderTargetBright;
+        for(let i = 0; i < this.nMips; i++){
+            this.fsQuad.material = this.separableBlurMaterials[i];
+            this.separableBlurMaterials[i].uniforms['colorTexture'].value = inputRenderTarget.texture;
+            this.separableBlurMaterials[i].uniforms['direction'].value = UnrealBloomPass.BlurDirectionX;
+            renderer.setRenderTarget(this.renderTargetsHorizontal[i]);
+            renderer.clear();
+            this.fsQuad.render(renderer);
+            this.separableBlurMaterials[i].uniforms['colorTexture'].value = this.renderTargetsHorizontal[i].texture;
+            this.separableBlurMaterials[i].uniforms['direction'].value = UnrealBloomPass.BlurDirectionY;
+            renderer.setRenderTarget(this.renderTargetsVertical[i]);
+            renderer.clear();
+            this.fsQuad.render(renderer);
+            inputRenderTarget = this.renderTargetsVertical[i];
+        }
+        // Composite All the mips
+        this.fsQuad.material = this.compositeMaterial;
+        this.compositeMaterial.uniforms['bloomStrength'].value = this.strength;
+        this.compositeMaterial.uniforms['bloomRadius'].value = this.radius;
+        this.compositeMaterial.uniforms['bloomTintColors'].value = this.bloomTintColors;
+        renderer.setRenderTarget(this.renderTargetsHorizontal[0]);
+        renderer.clear();
+        this.fsQuad.render(renderer);
+        // Blend it additively over the input texture
+        this.fsQuad.material = this.materialCopy;
+        this.copyUniforms['tDiffuse'].value = this.renderTargetsHorizontal[0].texture;
+        if (maskActive) renderer.state.buffers.stencil.setTest(true);
+        if (this.renderToScreen) {
+            renderer.setRenderTarget(null);
+            this.fsQuad.render(renderer);
+        } else {
+            renderer.setRenderTarget(readBuffer);
+            this.fsQuad.render(renderer);
+        }
+        // Restore renderer settings
+        renderer.setClearColor(this._oldClearColor, this.oldClearAlpha);
+        renderer.autoClear = oldAutoClear;
+    }
+    getSeperableBlurMaterial(kernelRadius) {
+        return new _three.ShaderMaterial({
+            defines: {
+                'KERNEL_RADIUS': kernelRadius,
+                'SIGMA': kernelRadius
+            },
+            uniforms: {
+                'colorTexture': {
+                    value: null
+                },
+                'texSize': {
+                    value: new _three.Vector2(0.5, 0.5)
+                },
+                'direction': {
+                    value: new _three.Vector2(0.5, 0.5)
+                }
+            },
+            vertexShader: `varying vec2 vUv;
+				void main() {
+					vUv = uv;
+					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+				}`,
+            fragmentShader: `#include <common>
+				varying vec2 vUv;
+				uniform sampler2D colorTexture;
+				uniform vec2 texSize;
+				uniform vec2 direction;
+
+				float gaussianPdf(in float x, in float sigma) {
+					return 0.39894 * exp( -0.5 * x * x/( sigma * sigma))/sigma;
+				}
+				void main() {
+					vec2 invSize = 1.0 / texSize;
+					float fSigma = float(SIGMA);
+					float weightSum = gaussianPdf(0.0, fSigma);
+					vec3 diffuseSum = texture2D( colorTexture, vUv).rgb * weightSum;
+					for( int i = 1; i < KERNEL_RADIUS; i ++ ) {
+						float x = float(i);
+						float w = gaussianPdf(x, fSigma);
+						vec2 uvOffset = direction * invSize * x;
+						vec3 sample1 = texture2D( colorTexture, vUv + uvOffset).rgb;
+						vec3 sample2 = texture2D( colorTexture, vUv - uvOffset).rgb;
+						diffuseSum += (sample1 + sample2) * w;
+						weightSum += 2.0 * w;
+					}
+					gl_FragColor = vec4(diffuseSum/weightSum, 1.0);
+				}`
+        });
+    }
+    getCompositeMaterial(nMips) {
+        return new _three.ShaderMaterial({
+            defines: {
+                'NUM_MIPS': nMips
+            },
+            uniforms: {
+                'blurTexture1': {
+                    value: null
+                },
+                'blurTexture2': {
+                    value: null
+                },
+                'blurTexture3': {
+                    value: null
+                },
+                'blurTexture4': {
+                    value: null
+                },
+                'blurTexture5': {
+                    value: null
+                },
+                'dirtTexture': {
+                    value: null
+                },
+                'bloomStrength': {
+                    value: 1
+                },
+                'bloomFactors': {
+                    value: null
+                },
+                'bloomTintColors': {
+                    value: null
+                },
+                'bloomRadius': {
+                    value: 0
+                }
+            },
+            vertexShader: `varying vec2 vUv;
+				void main() {
+					vUv = uv;
+					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+				}`,
+            fragmentShader: `varying vec2 vUv;
+				uniform sampler2D blurTexture1;
+				uniform sampler2D blurTexture2;
+				uniform sampler2D blurTexture3;
+				uniform sampler2D blurTexture4;
+				uniform sampler2D blurTexture5;
+				uniform sampler2D dirtTexture;
+				uniform float bloomStrength;
+				uniform float bloomRadius;
+				uniform float bloomFactors[NUM_MIPS];
+				uniform vec3 bloomTintColors[NUM_MIPS];
+
+				float lerpBloomFactor(const in float factor) {
+					float mirrorFactor = 1.2 - factor;
+					return mix(factor, mirrorFactor, bloomRadius);
+				}
+
+				void main() {
+					gl_FragColor = bloomStrength * ( lerpBloomFactor(bloomFactors[0]) * vec4(bloomTintColors[0], 1.0) * texture2D(blurTexture1, vUv) +
+						lerpBloomFactor(bloomFactors[1]) * vec4(bloomTintColors[1], 1.0) * texture2D(blurTexture2, vUv) +
+						lerpBloomFactor(bloomFactors[2]) * vec4(bloomTintColors[2], 1.0) * texture2D(blurTexture3, vUv) +
+						lerpBloomFactor(bloomFactors[3]) * vec4(bloomTintColors[3], 1.0) * texture2D(blurTexture4, vUv) +
+						lerpBloomFactor(bloomFactors[4]) * vec4(bloomTintColors[4], 1.0) * texture2D(blurTexture5, vUv) );
+				}`
+        });
+    }
+}
+UnrealBloomPass.BlurDirectionX = new _three.Vector2(1, 0);
+UnrealBloomPass.BlurDirectionY = new _three.Vector2(0, 1);
+
+},{"three":"ktPTu","./Pass.js":"i2IfB","../shaders/CopyShader.js":"d0PyX","../shaders/LuminosityHighPassShader.js":"j8C2Y","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"j8C2Y":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "LuminosityHighPassShader", ()=>LuminosityHighPassShader
+);
+var _three = require("three");
+/**
+ * Luminosity
+ * http://en.wikipedia.org/wiki/Luminosity
+ */ const LuminosityHighPassShader = {
+    shaderID: 'luminosityHighPass',
+    uniforms: {
+        'tDiffuse': {
+            value: null
+        },
+        'luminosityThreshold': {
+            value: 1
+        },
+        'smoothWidth': {
+            value: 1
+        },
+        'defaultColor': {
+            value: new _three.Color(0)
+        },
+        'defaultOpacity': {
+            value: 0
+        }
+    },
+    vertexShader: /* glsl */ `
+
+		varying vec2 vUv;
+
+		void main() {
+
+			vUv = uv;
+
+			gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+		}`,
+    fragmentShader: /* glsl */ `
+
+		uniform sampler2D tDiffuse;
+		uniform vec3 defaultColor;
+		uniform float defaultOpacity;
+		uniform float luminosityThreshold;
+		uniform float smoothWidth;
+
+		varying vec2 vUv;
+
+		void main() {
+
+			vec4 texel = texture2D( tDiffuse, vUv );
+
+			vec3 luma = vec3( 0.299, 0.587, 0.114 );
+
+			float v = dot( texel.xyz, luma );
+
+			vec4 outputColor = vec4( defaultColor.rgb, defaultOpacity );
+
+			float alpha = smoothstep( luminosityThreshold, luminosityThreshold + smoothWidth, v );
+
+			gl_FragColor = mix( outputColor, texel, alpha );
+
+		}`
+};
+
+},{"three":"ktPTu","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}]},["44WRj","5AKj5"], "5AKj5", "parcelRequire94c2")
 
 //# sourceMappingURL=index.a8f04b30.js.map

@@ -1,327 +1,227 @@
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-// import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-// import { EXRLoader } from "three/examples/jsm/loaders/EXRLoader.js";
-// import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
-
-import fragment from "./shader/fragment.glsl";
-import vertex from "./shader/vertexParticles.glsl";
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import GUI from "lil-gui";
+import Core from './core';
+import ParticleCloud from "./particleCloud";
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import gsap from "gsap";
-// import scene from "../scene.json";
-// import colorTiles from "../color-tiles.png";
-import particleTexture from "../particle-texture.png";
-const random = require("canvas-sketch-util/random");
-const createInputEvents = require("simple-input-events");
 
-function lerp(a, b, t) {
-  return a * (1 - t) + b * t;
-}
-
-export default class Sketch {
+export default class Sketch extends Core {
   constructor(options) {
-    this.scene = new THREE.Scene();
+    super(options);
 
-    this.container = options.dom;
-    this.width = this.container.offsetWidth || this.container.innerWidth;
-    this.height = this.container.offsetHeight || this.container.innerHeight;
-    console.log(this.height, this.width)
-    this.renderer = new THREE.WebGLRenderer({
-      transparent: true,
-      alpha: true,
-    });
-    // this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setSize(this.width, this.height);
-    // this.renderer.setClearColor(0x000000, 1);
-    this.renderer.physicallyCorrectLights = true;
-    this.renderer.outputEncoding = THREE.sRGBEncoding;
-    this.event = createInputEvents(this.renderer.domElement);
-    this.renderer.autoClear = false;
+    this.materials = [];
 
-    this.container.appendChild(this.renderer.domElement);
+    this.settings();
 
-    this.camera = new THREE.PerspectiveCamera(
-      85,
-      window.innerWidth / window.innerHeight,
-      0.0001,
-      10000
-    );
-
-    // var frustumSize = 10;
-    // var aspect = window.innerWidth / window.innerHeight;
-    // this.camera = new THREE.OrthographicCamera( frustumSize * aspect / - 2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / - 2, -1000, 1000 );
-    this.camera.position.set(0, 12.5, 2);
-
-    this.camera.aspect = this.width / this.height;
-
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.time = 0;
-
-    this.isBoomAnimationActive = true;
-    // setTimeout(() => {
-    //   console.log('dsfsdfsd');
-    //   this.isBoomAnimationActive = false;
-    // }, 1000);
-
-    this.raycaster = new THREE.Raycaster();
-    this.pointer = new THREE.Vector2();
-
-    this.glow = new THREE.WebGLRenderTarget(this.width, this.height, {});
-    this.transitionTime = -5.;
-
-    this.isPlaying = true;
-
+    this.particleCloud = new ParticleCloud();
     this.addObjects();
+    this.addPointsForCamera();
+
+    this.setPostProcessing();
     this.resize();
     this.render();
     this.setupResize();
-    this.settings();
-    this.raycasterEvent();
-
-    this.clock = new THREE.Clock();
   }
 
-  raycasterEvent() {
-    this.ball = new THREE.Mesh(
-      new THREE.SphereBufferGeometry(10, 32, 32),
-      new THREE.MeshBasicMaterial({ color: 0x000000 })
-    );
-    this.scene.add(this.ball);
+  setPostProcessing() {
+    const renderScene = new RenderPass(this.scene, this.camera);
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(this.width, this.height), 1.5, 0.4, 0.85);
+    this.bloomPass.threshold = this.settings.bloomThreshold;
+    this.bloomPass.strength = this.settings.bloomStrength;
+    this.bloomPass.radius = this.settings.bloomRadius;
 
-    let testmesh = new THREE.Mesh(
-      new THREE.PlaneBufferGeometry(1000, 1000),
-      new THREE.MeshBasicMaterial({ transparent: true })
-    );
-    testmesh.rotation.x = -Math.PI / 2;
-    testmesh.visible = false;
-    this.scene.add(testmesh);
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(renderScene);
+    this.composer.addPass(this.bloomPass);
+  }
 
-    this.event.on("move", ({ position, event, inside, dragging }) => {
-      // mousemove / touchmove
-      // console.log(position); // [ x, y ]
-      // console.log(event); // original mouse/touch event
-      // console.log(inside); // true if the mouse/touch is inside the element
-      // console.log(dragging); // true if the pointer was down/dragging
+  async cameraAnimation(position = { x: 0, y: 0, z: 0 }) {
+    if (!this.particleCloud.isMorphingEnabled) {
+      this.settings.morph = true;
+      this.gui.morph = true;
+      this.morph();
+    }
+    console.log(this.controls._target)
+    const pos = this.controls._target;
+    const degreeInRad = THREE.MathUtils.degToRad(90);
 
-      this.pointer.x = (position[0] / window.innerWidth) * 2 - 1;
-      this.pointer.y = -(position[1] / window.innerHeight) * 2 + 1;
+    this.controls.moveTo(position.x, position.y, position.z, true),
+      await Promise.all([
+        this.controls.moveTo(position.x, position.y, position.z, true),
+        this.controls.dollyTo(15, true),
+      ]);
 
-      this.raycaster.setFromCamera(this.pointer, this.camera);
+    await Promise.all([
+      this.controls.setLookAt(pos.x, pos.y, pos.z, 0, 0, 0, true),
+      this.controls.rotatePolarTo(
+        degreeInRad,
+        true
+      ),
+      this.controls.dollyTo(80, true)
+    ]);
 
-      const intersects = this.raycaster.intersectObjects([testmesh]);
+    // this.controls.minPolarAngle = degreeInRad;
+    // this.controls.maxPolarAngle = degreeInRad;
 
-      // console.log(intersects[0]);
-      if (intersects[0]) {
-        let p = intersects[0].point;
-        this.ball.position.copy(p);
-      }
-    });
+    // }
+    // else {
+    //   this.settings.morph = false;
+    //   this.gui.morph = false;
+    //   this.morph();
+    //   this.controls.moveTo(
+    //     0,
+    //     0,
+    //     0,
+    //     true
+    //   );
+
+    //   const degreeInRad = THREE.MathUtils.degToRad(25);
+    //   // this.controls.minPolarAngle = degreeInRad;
+    //   // this.controls.maxPolarAngle = degreeInRad;
+    //   this.controls.rotatePolarTo(
+    //     degreeInRad,
+    //     true
+    //   );
+    //   this.controls.dollyTo(150, true)
+    // }
+    this.updateControls();
   }
 
   settings() {
     this.settings = {
       morph: false,
-      progress: 0,
-      glow: false,
-      fdAlpha: 0,
-      superScale: 1,
+      exposure: 1,
+      bloomStrength: 1.1,
+      bloomThreshold: 0,
+      bloomRadius: 0
     };
     this.gui = new GUI();
-    this.gui.add(this.settings, "morph").onChange(() => {
-      this.transitionTime = this.time + 0.3;
+    this.gui.add(this.settings, "morph").onChange(() => this.morph());
+    this.gui.add(this.settings, 'exposure', 0.1, 2).onChange((value) => {
+      this.changeExposure(value);
     });
-    // this.gui.add(this.settings, "fdAlpha", 0, 1, 0.01);
-    // this.gui.add(this.settings, "superScale", 0, 3, 0.01);
-    // this.gui.add(this.settings, "glow");
-  }
-
-  fixHeightProblem() {
-    // The trick to viewport units on mobile browsers
-    const vh = window.innerHeight * 0.01;
-    document.documentElement.style.setProperty('--vh', `${vh}px`);
-  }
-
-  setupResize() {
-    window.addEventListener("resize", this.resize.bind(this), false);
+    this.gui.add(this.settings, 'bloomThreshold', 0.0, 1.0).onChange((value) => {
+      this.bloomPass.threshold = Number(value);
+    });
+    this.gui.add(this.settings, 'bloomStrength', 0.0, 3.0).onChange((value) => {
+      this.changeBloomStrength(value);
+    });
+    this.gui.add(this.settings, 'bloomRadius', 0.0, 1.0).step(0.01).onChange((value) => {
+      this.bloomPass.radius = Number(value);
+    });
   }
 
   resize() {
-    console.log("hi")
+    this.particleCloud.resize({
+      x: this.width,
+      y: this.height
+    });
+  }
 
-    this.fixHeightProblem();
-
-    this.width = this.container.offsetWidth || this.container.innerWidth;
-    this.height = this.container.offsetHeight || this.container.innerHeight;
-    this.renderer.setSize(this.width, this.height);
-    this.renderer.render(this.scene, this.camera);
-    this.camera.aspect = this.width / this.height;
-    this.camera.updateProjectionMatrix();
-
-    for (let i = 0; i < this.materials.length; i++) {
-      this.materials[i].uniforms.u_resolution.value = { x: this.width, y: this.height };
+  morph() {
+    if (!this.particleCloud.isMorphingEnabled) {
+      // this.changeExposure(0.45);
+      this.changeExposure(0.7);
+      this.changeBloomStrength(0.5);
     }
+    else {
+      this.changeExposure(1);
+      this.changeBloomStrength(1.1);
+    }
+    this.particleCloud.morph(this.time);
+  }
 
-    this.renderer.render(this.scene, this.camera);
+  changeExposure(value) {
+    gsap.to(this.renderer, {
+      toneMappingExposure: Math.pow(value, 4.0),
+      duration: 0.5,
+    })
+  }
+
+  changeBloomStrength(value) {
+    gsap.to(this.bloomPass, {
+      strength: Number(value),
+      duration: 0.5,
+    })
   }
 
   addObjects() {
+    const count = 4000;
+    const duration = 0.9;
+    const speed = 1.8;
 
-    this.uniforms = {
-      uTexture: { value: new THREE.TextureLoader().load(particleTexture) },
-      time: { value: 0 },
-      boomAnimation: { value: this.isBoomAnimationActive },
-      resolution: { value: new THREE.Vector4() },
-    };
-
-    this.materials = [];
-
-    let createParticleCloud = (
-      count,
-      minRadius,
-      maxRadius,
-      animationTime,
-      boomAnimationSpeed,
-      isTwist = false,
-      deltaY = 0
-    ) => {
-
-      let material = new THREE.ShaderMaterial({
-        extensions: {
-          derivatives: "#extension GL_OES_standard_derivatives : enable",
-        },
-        side: THREE.DoubleSide,
-        uniforms: {
-          ...this.uniforms,
-          u_resolution: { value: { x: this.width, y: this.height } },
-          animationTime: { value: animationTime },
-          transitionTime: { value: 0 },
-          boomAnimationSpeed: { value: boomAnimationSpeed },
-          twist: { value: 0. },
-          twist2: { value: isTwist },
-          deltaY: { value: deltaY },
-        },
-        // wireframe: true,
-        transparent: true,
-        vertexShader: vertex,
-        fragmentShader: fragment,
-        blending: THREE.AdditiveBlending,
-        // depthWrite: false,
-        depthTest: false,
-      });
-
-      this.materials.push(material);
-
-      let pos = new Float32Array(count * 3);
-      let particlegeo = new THREE.PlaneBufferGeometry(1, 1);
-      let geo = new THREE.InstancedBufferGeometry();
-      geo.instanceCount = count;
-      geo.setAttribute("position", particlegeo.getAttribute('position'));
-      geo.index = particlegeo.index;
-
-      for (let i = 0; i < count; i++) {
-        let theta = Math.random() * 2 * Math.PI;
-        let r = lerp(minRadius, maxRadius, Math.random());
-        let x = r * Math.sin(theta);
-        let y = (Math.random() - 0.5) * 0.05;
-        let z = r * Math.cos(theta);
-
-        pos.set([
-          x, y, z
-        ], i * 3);
-      }
-
-      geo.setAttribute("pos", new THREE.InstancedBufferAttribute(pos, 3, false));
-      geo.setAttribute("uv", new THREE.BufferAttribute(pos, 2));
-      this.mesh = new THREE.Mesh(geo, material);
-      this.scene.add(this.mesh);
-
-      // console.log(this.mesh);
-    }
-
-    let startInnerDuration = 0.9;
-    let startOuterDuration = 0.95;
-    let durationGap = 0.05;
-    let innerSpeed = 1.8;
-    let outerSpeed = 3.3;
-
-    const count = 4500;
-    const minRadius = 0.01;
-    const maxInnerRadius = 0.3;
-    const maxOuterRadius = 0.02;
-    const radiusGap = 0.004;
-
-    createParticleCloud(
-      count * 3,
-      minRadius,
-      maxInnerRadius,
-      startInnerDuration,
-      innerSpeed,
-      true,
-      4
+    this.particleCloud.createShaderMaterial(
+      { x: this.width, y: this.height },
+      duration,
+      speed,
+      0
     );
 
+    let minRadius = 0.01;
+    let maxRadius = 0.5;
+    const minGapRadius = 0.05;
+    const maxGapRadius = 0.3;
+
     for (let i = 0; i < 4; i++) {
-      let currentRadiusDelta = i * radiusGap;
-      createParticleCloud(
+
+      let mesh = this.particleCloud.createParticleCloud(
         count,
-        minRadius + currentRadiusDelta, 
-        maxOuterRadius + currentRadiusDelta, 
-        startOuterDuration, 
-        outerSpeed, 
-        true, 
-        0
+        minRadius,
+        maxRadius,
       );
+
+      this.scene.add(mesh);
+
+      minRadius = maxRadius + minGapRadius;
+      maxRadius = maxRadius + maxGapRadius;
     }
 
   }
 
-  stop() {
-    this.isPlaying = false;
-  }
+  addPointsForCamera() {
+    const geometry = new THREE.BoxGeometry(10, 10, 10);
+    this.points = [
+      { x: 0, y: 0, z: 0 },
+      { x: -40.31063211935775, y: 0, z: -7.5299241136265564 },
+      { x: -0.431651851596488, y: 0, z: 36.735493437942885 },
+      { x: 38.360254480861435, y: 0, z: -4.134071872299652 },
+      { x: 4.151668326034631, y: 0, z: -44.44804748500181 },
+      { x: -29.568267868006334, y: 0, z: 26.032432790631393 },
+      { x: 29.317626022399224, y: 0, z: -36.55709687455183 }
+    ]
 
-  play() {
-    if (!this.isPlaying) {
-      this.isPlaying = true;
-      this.render();
+    for (let i = 0; i < 7; i++) {
+      const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xebe1e1, transparent: false });
+      const mesh = new THREE.Mesh(geometry, material);
+
+      mesh.position.x = this.points[i].x;
+      mesh.position.y = this.points[i].y;
+      mesh.position.z = this.points[i].z;
+
+      mesh.callback = () => {
+        this.cameraAnimation(mesh.position)
+      };
+
+      this.scene.add(mesh);
+      // const control = new TransformControls(this.camera, this.renderer.domElement);
+      // control.attach(mesh);
+      // this.scene.add(control);
+
+      // control.addEventListener('dragging-changed', () => {
+      //   console.log(mesh.position);
+      // });
     }
+
   }
 
   render() {
-    if (!this.isPlaying) return;
-    this.time += 0.01;
-
-    this.renderer.clear();
-    // this.renderer.setClearColor(0x000000, 1);
-    // this.material.uniforms.glow.value = 1;
-    // this.material.uniforms.superOpacity.value = this.settings.fdAlpha;
-    // this.material.uniforms.superScale.value = this.settings.superScale;
-    // this.renderer.setRenderTarget(this.glow);
-    // this.renderer.setRenderTarget(null);
-
-    // this.renderer.autoClear = false;
-    this.renderer.clearDepth();
-    // this.material.uniforms.glow.value = 0;
-    // this.renderer.setClearColor(0x000000, 0);
-
-    // this.time = this.time%1;
-    // this.material.uniforms.fade.value = this.settings.progress;
-    // this.material.uniforms.glow.value = this.settings.glow
-    for (let i = 0; i < this.materials.length; i++) {
-      this.materials[i].uniforms.time.value = this.time;
-      this.materials[i].uniforms.transitionTime.value = this.transitionTime;
-      if (this.settings.morph)
-        this.materials[i].uniforms.twist.value = 2.5;
-      else {
-        if (this.materials[i].uniforms.twist.value != 0)
-          this.materials[i].uniforms.twist.value = -1;
-      }
-    }
-    // this.material.uniforms.boomAnimation.value = this.isBoomAnimationActive;
-    // this.material.uniforms.fdAlpha.value = this.settings.fdAlpha;
-    // this.material.uniforms.superOpacity.value = 1;
+    this.renderManager();
+    this.composer.render();
+    this.particleCloud.render(this.time);
     requestAnimationFrame(this.render.bind(this));
-    this.renderer.render(this.scene, this.camera);
-
   }
 }
 
