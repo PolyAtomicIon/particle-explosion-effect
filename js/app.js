@@ -44,15 +44,16 @@ export default class Sketch extends Core {
       this.gui.morph = true;
       this.morph();
     }
-    console.log(this.controls._target)
+    this.changeExposure(0.2)
+
     const pos = this.controls._target;
     const degreeInRad = THREE.MathUtils.degToRad(90);
+    this.controls.restThreshold = 5;
 
-    this.controls.moveTo(position.x, position.y, position.z, true),
-      await Promise.all([
-        this.controls.moveTo(position.x, position.y, position.z, true),
-        this.controls.dollyTo(15, true),
-      ]);
+    await Promise.all([
+      this.controls.moveTo(position.x, position.y, position.z, true),
+      this.controls.dollyTo(35, true),
+    ]);
 
     await Promise.all([
       this.controls.setLookAt(pos.x, pos.y, pos.z, 0, 0, 0, true),
@@ -60,8 +61,11 @@ export default class Sketch extends Core {
         degreeInRad,
         true
       ),
-      this.controls.dollyTo(80, true)
+      this.controls.dollyTo(55, true),
     ]);
+
+    this.controls.restThreshold = 0.01;
+    this.changeExposure(0.9)
 
     // this.controls.minPolarAngle = degreeInRad;
     // this.controls.maxPolarAngle = degreeInRad;
@@ -124,7 +128,7 @@ export default class Sketch extends Core {
   morph() {
     if (!this.particleCloud.isMorphingEnabled) {
       // this.changeExposure(0.45);
-      this.changeExposure(0.7);
+      this.changeExposure(0.2);
       this.changeBloomStrength(0.5);
     }
     else {
@@ -183,6 +187,7 @@ export default class Sketch extends Core {
 
   addPointsForCamera() {
     const geometry = new THREE.BoxGeometry(10, 10, 10);
+    this.meshes = [];
     this.points = [
       { x: 0, y: 0, z: 0 },
       { x: -40.31063211935775, y: 0, z: -7.5299241136265564 },
@@ -205,6 +210,7 @@ export default class Sketch extends Core {
         this.cameraAnimation(mesh.position)
       };
 
+      this.meshes.push(mesh);
       this.scene.add(mesh);
       // const control = new TransformControls(this.camera, this.renderer.domElement);
       // control.attach(mesh);

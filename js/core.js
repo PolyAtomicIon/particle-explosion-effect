@@ -67,7 +67,6 @@ export default class Core {
     this.controls.draggingDampingFactor = 0.1;
     this.controls.azimuthRotateSpeed = 0.15;
     this.controls.polarRotateSpeed = 0.5;
-    this.controls.restThreshold = 5;
     
     this.updateControls();
 
