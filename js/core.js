@@ -75,7 +75,7 @@ export default class Core {
     this.controls.rotatePolarTo(degreeInRad, true);
 
     this.controls.draggingDampingFactor = 0.1;
-    this.controls.azimuthRotateSpeed = 0.15;
+    this.controls.azimuthRotateSpeed = 0.35;
     this.controls.polarRotateSpeed = 0.5;
     this.cameraMoving = 0;
 
