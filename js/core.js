@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import CameraControls from "camera-controls";
+import { DEG2RAD } from "three/src/math/MathUtils";
 
 export default class Core {
   constructor(options) {
@@ -11,7 +12,9 @@ export default class Core {
     this.raycaster = new THREE.Raycaster();
     this.mouse = {
       x: 0,
-      y: 0
+      y: 0,
+      prevX: 0,
+      prevY: 0,
     };
     this.touch = {
       x: 0,
@@ -29,7 +32,7 @@ export default class Core {
     this.renderer = new THREE.WebGLRenderer({
       transparent: true,
       alpha: true,
-      antialias: true, 
+      antialias: true,
       logarithmicDepthBuffer: true
     });
 
@@ -52,23 +55,29 @@ export default class Core {
 
     this.camera.position.set(
       -50,
-      140,
-      -15
+      80,
+      0
     );
     this.camera.aspect = this.width / this.height;
 
     CameraControls.install({ THREE: THREE });
     this.controls = new CameraControls(this.camera, this.renderer.domElement);
     this.controls.setTarget(0, 0, 0, true);
+
     const degreeInRad = THREE.MathUtils.degToRad(25);
-    // this.controls.minPolarAngle = degreeInRad;
-    // this.controls.maxPolarAngle = degreeInRad;
-    // this.controls.minAzimuthAngle = degreeInRad;
-    // this.controls.maxAzimuthAngle = degreeInRad;
+    const minDegree = THREE.MathUtils.degToRad(20);
+    const maxDegree = THREE.MathUtils.degToRad(30);
+    this.controls.minPolarAngle = minDegree;
+    this.controls.maxPolarAngle = maxDegree;
+    this.controls.minAzimuthAngle = minDegree;
+    this.controls.maxAzimuthAngle = maxDegree;
+
     this.controls.rotatePolarTo(degreeInRad, true);
+
     this.controls.draggingDampingFactor = 0.1;
     this.controls.azimuthRotateSpeed = 0.15;
     this.controls.polarRotateSpeed = 0.5;
+    this.cameraMoving = 0;
 
     this.updateControls();
 
@@ -80,6 +89,10 @@ export default class Core {
     const axesHelper = new THREE.AxesHelper(50);
     this.scene.add(axesHelper);
 
+    window.addEventListener(
+      'pointermove',
+      this.onPointerMove.bind(this),
+    );
     window.addEventListener(
       'touchmove',
       this.TouchMoveManager.bind(this),
@@ -94,8 +107,21 @@ export default class Core {
     window.addEventListener('click', this.ClickManager.bind(this), false);
   }
 
+  onPointerMove(event) {
+    if (event.isPrimary === false || this.time < this.cameraMoving) {
+      this.mouse.x = 0;
+      this.mouse.y = 0;
+      return;
+    }
+
+    this.mouse.x =
+      event.clientX - this.width / 2;
+    this.mouse.y =
+      event.clientY - this.height / 2;
+  }
+
   ClickManager(event) {
-    event.preventDefault();
+    // event.preventDefault();
 
     this.mouse.x =
       (event.offsetX / this.renderer.domElement.clientWidth) * 2 - 1;
@@ -138,9 +164,9 @@ export default class Core {
     // if user drags
     if (diff.x > 0.2 || diff.y > 0.2) return;
 
-    this.mouse.x =
+    this.touch.x =
       (touch.clientX / this.renderer.domElement.clientWidth) * 2 - 1;
-    this.mouse.y =
+    this.touch.y =
       -(touch.clientY / this.renderer.domElement.clientHeight) * 2 + 1;
 
     this.RaycastHandler();
@@ -148,6 +174,8 @@ export default class Core {
 
   RaycastHandler() {
     this.raycaster.setFromCamera(this.mouse, this.camera);
+    this.mouse.x = 0;
+    this.mouse.y = 0;
 
     const intersects = this.raycaster.intersectObjects(
       this.scene.children,
@@ -213,13 +241,41 @@ export default class Core {
     this.controls.update(this.clock.getDelta());
   }
 
+  moveCameraOnPointerMove() {
+    if (this.mouse.x == 0) {
+      return
+    }
+
+    const speed = 0.1;
+    const cameraPos = this.controls.camera.position;
+
+    let deltaX = (this.mouse.x - cameraPos.x) * speed;
+    let deltaY = (-this.mouse.y - cameraPos.y) * speed;
+
+    const degreeInRad = THREE.MathUtils.degToRad(0.5);
+    this.controls.rotate(
+      deltaX * degreeInRad,
+      deltaY * degreeInRad,
+      true
+    );
+  }
+
   renderManager() {
     if (!this.isPlaying) return;
-    this.time += 0.01;
 
     this.renderer.clear();
     this.renderer.clearDepth();
 
+    if (this.time >= this.cameraMoving) {
+      this.moveCameraOnPointerMove();
+      if (this.time - this.cameraMoving < 0.1) {
+        const currentAzimuthAngle = this.controls.azimuthAngle;
+        this.controls.minAzimuthAngle = currentAzimuthAngle - THREE.MathUtils.degToRad(1.5);
+        this.controls.maxAzimuthAngle = currentAzimuthAngle + THREE.MathUtils.degToRad(1.5);
+      }
+    }
+
+    this.time += 0.01;
     this.updateControls();
   }
 

@@ -18,6 +18,7 @@ export default class Sketch extends Core {
 
     this.particleCloud = new ParticleCloud();
     this.addObjects();
+    this.addBillboard();
     this.addPointsForCamera();
 
     this.setPostProcessing();
@@ -44,15 +45,20 @@ export default class Sketch extends Core {
       this.gui.morph = true;
       this.morph();
     }
-    this.changeExposure(0.2)
+    this.changeExposure(0.4)
+    const degreeInRad = THREE.MathUtils.degToRad(90);
+    this.controls.minPolarAngle = degreeInRad - THREE.MathUtils.degToRad(1.5);
+    this.controls.maxPolarAngle = degreeInRad + THREE.MathUtils.degToRad(1.5);
+    this.controls.minAzimuthAngle = -Infinity;
+    this.controls.maxAzimuthAngle = Infinity;
 
     const pos = this.controls._target;
-    const degreeInRad = THREE.MathUtils.degToRad(90);
     this.controls.restThreshold = 5;
+    this.cameraMoving = this.time + 1.5;
 
     await Promise.all([
       this.controls.moveTo(position.x, position.y, position.z, true),
-      this.controls.dollyTo(35, true),
+      this.controls.dollyTo(25, true),
     ]);
 
     await Promise.all([
@@ -64,33 +70,10 @@ export default class Sketch extends Core {
       this.controls.dollyTo(55, true),
     ]);
 
+    this.controls.dampingFactor = 0.05;
     this.controls.restThreshold = 0.01;
-    this.changeExposure(0.9)
+    // this.changeExposure(0.9);s
 
-    // this.controls.minPolarAngle = degreeInRad;
-    // this.controls.maxPolarAngle = degreeInRad;
-
-    // }
-    // else {
-    //   this.settings.morph = false;
-    //   this.gui.morph = false;
-    //   this.morph();
-    //   this.controls.moveTo(
-    //     0,
-    //     0,
-    //     0,
-    //     true
-    //   );
-
-    //   const degreeInRad = THREE.MathUtils.degToRad(25);
-    //   // this.controls.minPolarAngle = degreeInRad;
-    //   // this.controls.maxPolarAngle = degreeInRad;
-    //   this.controls.rotatePolarTo(
-    //     degreeInRad,
-    //     true
-    //   );
-    //   this.controls.dollyTo(150, true)
-    // }
     this.updateControls();
   }
 
@@ -103,7 +86,9 @@ export default class Sketch extends Core {
       bloomRadius: 0
     };
     this.gui = new GUI();
-    this.gui.add(this.settings, "morph").onChange(() => this.morph());
+    this.gui.add(this.settings, "morph").onChange(() => {
+      this.morph();
+    });
     this.gui.add(this.settings, 'exposure', 0.1, 2).onChange((value) => {
       this.changeExposure(value);
     });
@@ -127,8 +112,8 @@ export default class Sketch extends Core {
 
   morph() {
     if (!this.particleCloud.isMorphingEnabled) {
-      // this.changeExposure(0.45);
-      this.changeExposure(0.2);
+      this.changeExposure(0.45);
+      // this.changeExposure(0.2);
       this.changeBloomStrength(0.5);
     }
     else {
@@ -153,9 +138,9 @@ export default class Sketch extends Core {
   }
 
   addObjects() {
-    const count = 4000;
+    const count = 3500;
     const duration = 0.9;
-    const speed = 1.8;
+    const speed = 1.9;
 
     this.particleCloud.createShaderMaterial(
       { x: this.width, y: this.height },
@@ -169,14 +154,14 @@ export default class Sketch extends Core {
     const minGapRadius = 0.05;
     const maxGapRadius = 0.3;
 
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 3; i++) {
 
       let mesh = this.particleCloud.createParticleCloud(
         count,
         minRadius,
         maxRadius,
       );
-      
+
       mesh.frustumCulled = false;
       this.scene.add(mesh);
 
@@ -186,8 +171,12 @@ export default class Sketch extends Core {
 
   }
 
+  addBillboard() {
+    this.scene.add(this.particleCloud.createBillboard());
+  }
+
   addPointsForCamera() {
-    const geometry = new THREE.BoxGeometry(10, 10, 10);
+    const geometry = new THREE.BoxGeometry(3, 3, 3);
     this.meshes = [];
     this.points = [
       { x: 0, y: 0, z: 0 },
@@ -228,6 +217,7 @@ export default class Sketch extends Core {
     this.renderManager();
     this.composer.render();
     this.particleCloud.render(this.time);
+
     requestAnimationFrame(this.render.bind(this));
   }
 }

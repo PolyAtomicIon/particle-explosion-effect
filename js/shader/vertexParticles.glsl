@@ -222,7 +222,7 @@ mat3 rotation3dY(float angle){
 	float s=sin(angle);
 	float c=cos(angle);
 	
-	float scaler=pow(E*E*1.,smoothstep(0.,animationTime,time)*animationSpeed);
+	float scaler=pow(E*E*1.2,smoothstep(0.,animationTime,time)*animationSpeed);
 	// float scaler=1.;
 	
 	return mat3(
@@ -247,16 +247,14 @@ vec3 getOffset(vec3 p){
 	vec3 offset=fbm_vec3(pos,3.,.5);
 	
 	float lastTime=transitionTime-.3;
-	float delta=smoothstep(0.,transitionTime-lastTime,time-lastTime);
+	float delta=1.;
 	
 	if(twist>0.){
-		float lastTime=transitionTime-.3;
-		float delta=smoothstep(0.,transitionTime-lastTime,time-lastTime);
+		delta+=smoothstep(0.,transitionTime-lastTime,time-lastTime);
 		return offset*delta*twistScale;
 	}
 	else if(twist<0.){
-		float lastTime=transitionTime-.3;
-		float delta=smoothstep(transitionTime-lastTime,0.,time-lastTime);
+		delta+=smoothstep(transitionTime-lastTime,0.,time-lastTime);
 		return offset*delta*twistScale;
 	}
 }
@@ -266,7 +264,7 @@ void main(){
 	vUv=position.xy+vec2(.5);
 	vec3 finalPos=pos+position*.1;
 	
-	float particleSize=cnoise(pos*5.)*.5+2.5;
+	float particleSize=cnoise(pos*5.)*3.+3.5;
 	
 	vec3 worldPos=rotation3dY((time)*.01*(.1+particleSize*.5))*pos;
 	

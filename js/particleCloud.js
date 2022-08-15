@@ -88,6 +88,36 @@ export default class ParticleCloud {
     return new THREE.Mesh(geo, this.material);
   }
 
+  createBillboard() {
+    const geometry = new THREE.BufferGeometry();
+    const vertices = [];
+
+    for (let i = 0; i < 2000; i++) {
+
+      const x = 100 * Math.random() - 50;
+      const y = 100 * Math.random() - 50;
+      const z = 100 * Math.random() - 50;
+
+      vertices.push(x, y, z);
+    }
+
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+
+    const material = new THREE.PointsMaterial({ 
+      size: .75, 
+      sizeAttenuation: true, 
+      map: this.particleTexture, 
+      // alphaTest: 0.2,
+      depthTest: false,
+      depthWrite: false, 
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+    });
+
+    const particles = new THREE.Points(geometry, material);
+    return particles;
+  }
+
   render(time) {
     if (this.material) {
       this.material.uniforms.time.value = time;
