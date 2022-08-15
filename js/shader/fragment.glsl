@@ -54,7 +54,7 @@ void main(){
     color = mix(color, green, smoothstep(step3, step4, dist));
 
 	vec4 ttt=texture2D(uTexture,vUv);
-	gl_FragColor=vec4(vec3(color),ttt.r);
-	// gl_FragColor=vec4(vec3(1.0),ttt.r);
+	// gl_FragColor=vec4(vec3(color),ttt.r);
+	gl_FragColor=vec4(vec3(1.0), 1.0);
     // gl_FragColor = color;
 }

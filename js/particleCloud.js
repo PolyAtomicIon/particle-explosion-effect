@@ -52,7 +52,7 @@ export default class ParticleCloud {
       vertexShader: vertex,
       fragmentShader: fragment,
       blending: THREE.AdditiveBlending,
-      // depthWrite: false,
+      depthWrite: false,
       depthTest: false,
     });
   }

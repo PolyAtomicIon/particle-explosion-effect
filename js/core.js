@@ -29,6 +29,8 @@ export default class Core {
     this.renderer = new THREE.WebGLRenderer({
       transparent: true,
       alpha: true,
+      antialias: true, 
+      logarithmicDepthBuffer: true
     });
 
     // this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -44,8 +46,8 @@ export default class Core {
     this.camera = new THREE.PerspectiveCamera(
       45,
       this.aspect,
-      0.0001,
-      10000
+      0.00001,
+      1000
     );
 
     this.camera.position.set(
@@ -67,7 +69,7 @@ export default class Core {
     this.controls.draggingDampingFactor = 0.1;
     this.controls.azimuthRotateSpeed = 0.15;
     this.controls.polarRotateSpeed = 0.5;
-    
+
     this.updateControls();
 
     this.time = 0;

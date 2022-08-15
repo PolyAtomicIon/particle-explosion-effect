@@ -176,7 +176,8 @@ export default class Sketch extends Core {
         minRadius,
         maxRadius,
       );
-
+      
+      mesh.frustumCulled = false;
       this.scene.add(mesh);
 
       minRadius = maxRadius + minGapRadius;

@@ -3,6 +3,7 @@ precision highp float;
 uniform float time;
 uniform bool boomAnimation;
 uniform float twist;
+uniform bool twist2;
 uniform float animationTime;
 uniform float transitionTime;
 uniform float deltaY;
