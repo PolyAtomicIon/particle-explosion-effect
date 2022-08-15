@@ -46,14 +46,14 @@ export default class Sketch extends Core {
       this.morph();
     }
     this.changeExposure(0.4)
-    const degreeInRad = THREE.MathUtils.degToRad(90);
+    const degreeInRad = THREE.MathUtils.degToRad(87);
     this.controls.minPolarAngle = degreeInRad - THREE.MathUtils.degToRad(1.5);
     this.controls.maxPolarAngle = degreeInRad + THREE.MathUtils.degToRad(1.5);
     this.controls.minAzimuthAngle = -Infinity;
     this.controls.maxAzimuthAngle = Infinity;
 
     const pos = this.controls._target;
-    this.controls.restThreshold = 5;
+    this.controls.restThreshold = 10;
     this.cameraMoving = this.time + 1.5;
 
     await Promise.all([
@@ -81,7 +81,7 @@ export default class Sketch extends Core {
     this.settings = {
       morph: false,
       exposure: 1,
-      bloomStrength: 1.1,
+      bloomStrength: 1.2,
       bloomThreshold: 0,
       bloomRadius: 0
     };
@@ -114,11 +114,11 @@ export default class Sketch extends Core {
     if (!this.particleCloud.isMorphingEnabled) {
       this.changeExposure(0.45);
       // this.changeExposure(0.2);
-      this.changeBloomStrength(0.5);
+      // this.changeBloomStrength(0.5);
     }
     else {
       this.changeExposure(1);
-      this.changeBloomStrength(1.1);
+      // this.changeBloomStrength(1.1);
     }
     this.particleCloud.morph(this.time);
   }
@@ -162,7 +162,6 @@ export default class Sketch extends Core {
         maxRadius,
       );
 
-      mesh.frustumCulled = false;
       this.scene.add(mesh);
 
       minRadius = maxRadius + minGapRadius;
@@ -172,6 +171,10 @@ export default class Sketch extends Core {
   }
 
   addBillboard() {
+    this.particleCloud.createBillboardMaterial(
+      { x: this.width, y: this.height },
+    );
+    
     this.scene.add(this.particleCloud.createBillboard());
   }
 

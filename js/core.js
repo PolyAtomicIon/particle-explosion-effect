@@ -77,6 +77,7 @@ export default class Core {
     this.controls.draggingDampingFactor = 0.1;
     this.controls.azimuthRotateSpeed = 0.35;
     this.controls.polarRotateSpeed = 0.5;
+    this.controls.dollySpeed = 0.75;
     this.cameraMoving = 0;
 
     this.updateControls();
@@ -86,8 +87,8 @@ export default class Core {
 
     this.setLighting();
 
-    const axesHelper = new THREE.AxesHelper(50);
-    this.scene.add(axesHelper);
+    // const axesHelper = new THREE.AxesHelper(50);
+    // this.scene.add(axesHelper);
 
     window.addEventListener(
       'pointermove',

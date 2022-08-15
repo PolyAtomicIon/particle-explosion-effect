@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { lerp } from './utils'
 import fragment from "./shader/fragment.glsl";
 import vertex from "./shader/vertexParticles.glsl";
+import simpleVertex from "./shader/vertex.glsl";
 import particleTexture from "../particle-texture.png";
 
 export default class ParticleCloud {
@@ -85,40 +86,73 @@ export default class ParticleCloud {
     geo.setAttribute("pos", new THREE.InstancedBufferAttribute(pos, 3, false));
     geo.setAttribute("uv", new THREE.BufferAttribute(pos, 2));
 
-    return new THREE.Mesh(geo, this.material);
+    const mesh = new THREE.Mesh(geo, this.material);
+    mesh.frustumCulled = false;
+
+    return mesh;
+  }
+
+  createBillboardMaterial(resolution) {
+
+    const uniforms = {
+      uTexture: { value: this.particleTexture },
+      time: { value: 0 },
+      resolution: { value: new THREE.Vector4() },
+      u_resolution: { value: resolution },
+      animationTime: { value: 0.9 },
+      animationSpeed: { value: 2.3 },
+    };
+
+    this.billboardMaterial = new THREE.ShaderMaterial({
+      extensions: {
+        derivatives: "#extension GL_OES_standard_derivatives : enable",
+      },
+      side: THREE.DoubleSide,
+      uniforms: uniforms,
+      // wireframe: true,
+      transparent: true,
+      vertexShader: simpleVertex,
+      fragmentShader: fragment,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false,
+    });
   }
 
   createBillboard() {
-    const geometry = new THREE.BufferGeometry();
-    const vertices = [];
+    const count = 2000;
 
-    for (let i = 0; i < 2000; i++) {
+    let pos = new Float32Array(count * 3);
+    let particlegeo = new THREE.PlaneBufferGeometry(1, 1);
+    let geo = new THREE.InstancedBufferGeometry();
+    geo.instanceCount = count;
+    geo.setAttribute("position", particlegeo.getAttribute('position'));
+    geo.index = particlegeo.index;
 
-      const x = 100 * Math.random() - 50;
-      const y = 100 * Math.random() - 50;
-      const z = 100 * Math.random() - 50;
+    for (let i = 0; i < count; i++) {
+      const x = 1 * Math.random() - .5;
+      const y = 1 * Math.random() - .5;
+      const z = 1 * Math.random() - .5;
 
-      vertices.push(x, y, z);
+      pos.set([
+        x, y, z
+      ], i * 3);
     }
 
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geo.setAttribute("pos", new THREE.InstancedBufferAttribute(pos, 3, false));
+    geo.setAttribute("uv", new THREE.BufferAttribute(pos, 2));
 
-    const material = new THREE.PointsMaterial({ 
-      size: .75, 
-      sizeAttenuation: true, 
-      map: this.particleTexture, 
-      // alphaTest: 0.2,
-      depthTest: false,
-      depthWrite: false, 
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-    });
+    const mesh = new THREE.Mesh(geo, this.billboardMaterial);
+    mesh.frustumCulled = false;
 
-    const particles = new THREE.Points(geometry, material);
-    return particles;
+    return mesh;
   }
 
   render(time) {
+    if (this.billboardMaterial) {
+      this.billboardMaterial.uniforms.time.value = time;
+    }
+
     if (this.material) {
       this.material.uniforms.time.value = time;
       this.material.uniforms.transitionTime.value = this.transitionTime;

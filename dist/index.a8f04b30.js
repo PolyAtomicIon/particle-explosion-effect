@@ -564,13 +564,13 @@ class Sketch extends _coreDefault.default {
             this.morph();
         }
         this.changeExposure(0.4);
-        const degreeInRad = _three.MathUtils.degToRad(90);
+        const degreeInRad = _three.MathUtils.degToRad(87);
         this.controls.minPolarAngle = degreeInRad - _three.MathUtils.degToRad(1.5);
         this.controls.maxPolarAngle = degreeInRad + _three.MathUtils.degToRad(1.5);
         this.controls.minAzimuthAngle = -Infinity;
         this.controls.maxAzimuthAngle = Infinity;
         const pos = this.controls._target;
-        this.controls.restThreshold = 5;
+        this.controls.restThreshold = 10;
         this.cameraMoving = this.time + 1.5;
         await Promise.all([
             this.controls.moveTo(position.x, position.y, position.z, true),
@@ -590,7 +590,7 @@ class Sketch extends _coreDefault.default {
         this.settings = {
             morph: false,
             exposure: 1,
-            bloomStrength: 1.1,
+            bloomStrength: 1.2,
             bloomThreshold: 0,
             bloomRadius: 0
         };
@@ -618,14 +618,8 @@ class Sketch extends _coreDefault.default {
         });
     }
     morph() {
-        if (!this.particleCloud.isMorphingEnabled) {
-            this.changeExposure(0.45);
-            // this.changeExposure(0.2);
-            this.changeBloomStrength(0.5);
-        } else {
-            this.changeExposure(1);
-            this.changeBloomStrength(1.1);
-        }
+        if (!this.particleCloud.isMorphingEnabled) this.changeExposure(0.45);
+        else this.changeExposure(1);
         this.particleCloud.morph(this.time);
     }
     changeExposure(value) {
@@ -654,13 +648,16 @@ class Sketch extends _coreDefault.default {
         const maxGapRadius = 0.3;
         for(let i = 0; i < 3; i++){
             let mesh = this.particleCloud.createParticleCloud(count, minRadius, maxRadius);
-            mesh.frustumCulled = false;
             this.scene.add(mesh);
             minRadius = maxRadius + minGapRadius;
             maxRadius = maxRadius + maxGapRadius;
         }
     }
     addBillboard() {
+        this.particleCloud.createBillboardMaterial({
+            x: this.width,
+            y: this.height
+        });
         this.scene.add(this.particleCloud.createBillboard());
     }
     addPointsForCamera() {
@@ -37780,13 +37777,14 @@ class Core {
         this.controls.draggingDampingFactor = 0.1;
         this.controls.azimuthRotateSpeed = 0.35;
         this.controls.polarRotateSpeed = 0.5;
+        this.controls.dollySpeed = 0.75;
         this.cameraMoving = 0;
         this.updateControls();
         this.time = 0;
         this.isPlaying = true;
         this.setLighting();
-        const axesHelper = new _three.AxesHelper(50);
-        this.scene.add(axesHelper);
+        // const axesHelper = new THREE.AxesHelper(50);
+        // this.scene.add(axesHelper);
         window.addEventListener('pointermove', this.onPointerMove.bind(this));
         window.addEventListener('touchmove', this.TouchMoveManager.bind(this), false);
         window.addEventListener('touchstart', this.TouchStartManager.bind(this), false);
@@ -39920,6 +39918,8 @@ var _fragmentGlsl = require("./shader/fragment.glsl");
 var _fragmentGlslDefault = parcelHelpers.interopDefault(_fragmentGlsl);
 var _vertexParticlesGlsl = require("./shader/vertexParticles.glsl");
 var _vertexParticlesGlslDefault = parcelHelpers.interopDefault(_vertexParticlesGlsl);
+var _vertexGlsl = require("./shader/vertex.glsl");
+var _vertexGlslDefault = parcelHelpers.interopDefault(_vertexGlsl);
 var _particleTexturePng = require("../particle-texture.png");
 var _particleTexturePngDefault = parcelHelpers.interopDefault(_particleTexturePng);
 class ParticleCloud {
@@ -40002,32 +40002,72 @@ class ParticleCloud {
         }
         geo.setAttribute("pos", new _three.InstancedBufferAttribute(pos, 3, false));
         geo.setAttribute("uv", new _three.BufferAttribute(pos, 2));
-        return new _three.Mesh(geo, this.material);
+        const mesh = new _three.Mesh(geo, this.material);
+        mesh.frustumCulled = false;
+        return mesh;
+    }
+    createBillboardMaterial(resolution) {
+        const uniforms = {
+            uTexture: {
+                value: this.particleTexture
+            },
+            time: {
+                value: 0
+            },
+            resolution: {
+                value: new _three.Vector4()
+            },
+            u_resolution: {
+                value: resolution
+            },
+            animationTime: {
+                value: 0.9
+            },
+            animationSpeed: {
+                value: 2.3
+            }
+        };
+        this.billboardMaterial = new _three.ShaderMaterial({
+            extensions: {
+                derivatives: "#extension GL_OES_standard_derivatives : enable"
+            },
+            side: _three.DoubleSide,
+            uniforms: uniforms,
+            // wireframe: true,
+            transparent: true,
+            vertexShader: _vertexGlslDefault.default,
+            fragmentShader: _fragmentGlslDefault.default,
+            blending: _three.AdditiveBlending,
+            depthWrite: false,
+            depthTest: false
+        });
     }
     createBillboard() {
-        const geometry = new _three.BufferGeometry();
-        const vertices = [];
-        for(let i = 0; i < 2000; i++){
-            const x = 100 * Math.random() - 50;
-            const y = 100 * Math.random() - 50;
-            const z = 100 * Math.random() - 50;
-            vertices.push(x, y, z);
+        const count = 2000;
+        let pos = new Float32Array(count * 3);
+        let particlegeo = new _three.PlaneBufferGeometry(1, 1);
+        let geo = new _three.InstancedBufferGeometry();
+        geo.instanceCount = count;
+        geo.setAttribute("position", particlegeo.getAttribute('position'));
+        geo.index = particlegeo.index;
+        for(let i = 0; i < count; i++){
+            const x = 1 * Math.random() - 0.5;
+            const y = 1 * Math.random() - 0.5;
+            const z = 1 * Math.random() - 0.5;
+            pos.set([
+                x,
+                y,
+                z
+            ], i * 3);
         }
-        geometry.setAttribute('position', new _three.Float32BufferAttribute(vertices, 3));
-        const material = new _three.PointsMaterial({
-            size: 0.75,
-            sizeAttenuation: true,
-            map: this.particleTexture,
-            // alphaTest: 0.2,
-            depthTest: false,
-            depthWrite: false,
-            transparent: true,
-            blending: _three.AdditiveBlending
-        });
-        const particles = new _three.Points(geometry, material);
-        return particles;
+        geo.setAttribute("pos", new _three.InstancedBufferAttribute(pos, 3, false));
+        geo.setAttribute("uv", new _three.BufferAttribute(pos, 2));
+        const mesh = new _three.Mesh(geo, this.billboardMaterial);
+        mesh.frustumCulled = false;
+        return mesh;
     }
     render(time) {
+        if (this.billboardMaterial) this.billboardMaterial.uniforms.time.value = time;
         if (this.material) {
             this.material.uniforms.time.value = time;
             this.material.uniforms.transitionTime.value = this.transitionTime;
@@ -40038,7 +40078,7 @@ class ParticleCloud {
 }
 exports.default = ParticleCloud;
 
-},{"three":"ktPTu","./utils":"eYK4L","./shader/fragment.glsl":"501kY","./shader/vertexParticles.glsl":"3ctUY","../particle-texture.png":"3NsHC","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"eYK4L":[function(require,module,exports) {
+},{"three":"ktPTu","./utils":"eYK4L","./shader/fragment.glsl":"501kY","./shader/vertexParticles.glsl":"3ctUY","../particle-texture.png":"3NsHC","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","./shader/vertex.glsl":"7aGpr"}],"eYK4L":[function(require,module,exports) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "lerp", ()=>lerp
@@ -40089,6 +40129,9 @@ function getOrigin(url) {
 exports.getBundleURL = getBundleURLCached;
 exports.getBaseURL = getBaseURL;
 exports.getOrigin = getOrigin;
+
+},{}],"7aGpr":[function(require,module,exports) {
+module.exports = "precision highp float;\n#define GLSLIFY 1\n\nuniform float time;\nuniform float animationTime;\nuniform float animationSpeed;\nvarying vec3 vPosition;\nvarying vec2 vUv;\nattribute vec3 pos;\n\nconst vec3 color1=vec3(0.,.14,.64);\nconst vec3 color2=vec3(.39,.52,.97);\nconst vec3 color3=vec3(.51,.17,.75);\nconst float E=2.7182818284590452;\nconst float PI=3.14159265359;\n\n//\n// GLSL textureless classic 3D noise \"cnoise\",\n// with an RSL-style periodic variant \"pnoise\".\n// Author:  Stefan Gustavson (stefan.gustavson@liu.se)\n// Version: 2011-10-11\n//\n// Many thanks to Ian McEwan of Ashima Arts for the\n// ideas for permutation and gradient selection.\n//\n// Copyright (c) 2011 Stefan Gustavson. All rights reserved.\n// Distributed under the MIT license. See LICENSE file.\n// https://github.com/stegu/webgl-noise\n//\n\nvec3 mod289(vec3 x)\n{\n  return x-floor(x*(1./289.))*289.;\n}\n\nvec4 mod289(vec4 x)\n{\n  return x-floor(x*(1./289.))*289.;\n}\n\nvec4 permute(vec4 x)\n{\n  return mod289(((x*34.)+10.)*x);\n}\n\nvec4 taylorInvSqrt(vec4 r)\n{\n  return 1.79284291400159-.85373472095314*r;\n}\n\nvec3 fade(vec3 t){\n  return t*t*t*(t*(t*6.-15.)+10.);\n}\n\n// Classic Perlin noise\nfloat cnoise(vec3 P)\n{\n  vec3 Pi0=floor(P);// Integer part for indexing\n  vec3 Pi1=Pi0+vec3(1.);// Integer part + 1\n  Pi0=mod289(Pi0);\n  Pi1=mod289(Pi1);\n  vec3 Pf0=fract(P);// Fractional part for interpolation\n  vec3 Pf1=Pf0-vec3(1.);// Fractional part - 1.0\n  vec4 ix=vec4(Pi0.x,Pi1.x,Pi0.x,Pi1.x);\n  vec4 iy=vec4(Pi0.yy,Pi1.yy);\n  vec4 iz0=Pi0.zzzz;\n  vec4 iz1=Pi1.zzzz;\n  \n  vec4 ixy=permute(permute(ix)+iy);\n  vec4 ixy0=permute(ixy+iz0);\n  vec4 ixy1=permute(ixy+iz1);\n  \n  vec4 gx0=ixy0*(1./7.);\n  vec4 gy0=fract(floor(gx0)*(1./7.))-.5;\n  gx0=fract(gx0);\n  vec4 gz0=vec4(.5)-abs(gx0)-abs(gy0);\n  vec4 sz0=step(gz0,vec4(0.));\n  gx0-=sz0*(step(0.,gx0)-.5);\n  gy0-=sz0*(step(0.,gy0)-.5);\n  \n  vec4 gx1=ixy1*(1./7.);\n  vec4 gy1=fract(floor(gx1)*(1./7.))-.5;\n  gx1=fract(gx1);\n  vec4 gz1=vec4(.5)-abs(gx1)-abs(gy1);\n  vec4 sz1=step(gz1,vec4(0.));\n  gx1-=sz1*(step(0.,gx1)-.5);\n  gy1-=sz1*(step(0.,gy1)-.5);\n  \n  vec3 g000=vec3(gx0.x,gy0.x,gz0.x);\n  vec3 g100=vec3(gx0.y,gy0.y,gz0.y);\n  vec3 g010=vec3(gx0.z,gy0.z,gz0.z);\n  vec3 g110=vec3(gx0.w,gy0.w,gz0.w);\n  vec3 g001=vec3(gx1.x,gy1.x,gz1.x);\n  vec3 g101=vec3(gx1.y,gy1.y,gz1.y);\n  vec3 g011=vec3(gx1.z,gy1.z,gz1.z);\n  vec3 g111=vec3(gx1.w,gy1.w,gz1.w);\n  \n  vec4 norm0=taylorInvSqrt(vec4(dot(g000,g000),dot(g010,g010),dot(g100,g100),dot(g110,g110)));\n  g000*=norm0.x;\n  g010*=norm0.y;\n  g100*=norm0.z;\n  g110*=norm0.w;\n  vec4 norm1=taylorInvSqrt(vec4(dot(g001,g001),dot(g011,g011),dot(g101,g101),dot(g111,g111)));\n  g001*=norm1.x;\n  g011*=norm1.y;\n  g101*=norm1.z;\n  g111*=norm1.w;\n  \n  float n000=dot(g000,Pf0);\n  float n100=dot(g100,vec3(Pf1.x,Pf0.yz));\n  float n010=dot(g010,vec3(Pf0.x,Pf1.y,Pf0.z));\n  float n110=dot(g110,vec3(Pf1.xy,Pf0.z));\n  float n001=dot(g001,vec3(Pf0.xy,Pf1.z));\n  float n101=dot(g101,vec3(Pf1.x,Pf0.y,Pf1.z));\n  float n011=dot(g011,vec3(Pf0.x,Pf1.yz));\n  float n111=dot(g111,Pf1);\n  \n  vec3 fade_xyz=fade(Pf0);\n  vec4 n_z=mix(vec4(n000,n100,n010,n110),vec4(n001,n101,n011,n111),fade_xyz.z);\n  vec2 n_yz=mix(n_z.xy,n_z.zw,fade_xyz.y);\n  float n_xyz=mix(n_yz.x,n_yz.y,fade_xyz.x);\n  return 2.2*n_xyz;\n}\n\n// Classic Perlin noise, periodic variant\nfloat pnoise(vec3 P,vec3 rep)\n{\n  vec3 Pi0=mod(floor(P),rep);// Integer part, modulo period\n  vec3 Pi1=mod(Pi0+vec3(1.),rep);// Integer part + 1, mod period\n  Pi0=mod289(Pi0);\n  Pi1=mod289(Pi1);\n  vec3 Pf0=fract(P);// Fractional part for interpolation\n  vec3 Pf1=Pf0-vec3(1.);// Fractional part - 1.0\n  vec4 ix=vec4(Pi0.x,Pi1.x,Pi0.x,Pi1.x);\n  vec4 iy=vec4(Pi0.yy,Pi1.yy);\n  vec4 iz0=Pi0.zzzz;\n  vec4 iz1=Pi1.zzzz;\n  \n  vec4 ixy=permute(permute(ix)+iy);\n  vec4 ixy0=permute(ixy+iz0);\n  vec4 ixy1=permute(ixy+iz1);\n  \n  vec4 gx0=ixy0*(1./7.);\n  vec4 gy0=fract(floor(gx0)*(1./7.))-.5;\n  gx0=fract(gx0);\n  vec4 gz0=vec4(.5)-abs(gx0)-abs(gy0);\n  vec4 sz0=step(gz0,vec4(0.));\n  gx0-=sz0*(step(0.,gx0)-.5);\n  gy0-=sz0*(step(0.,gy0)-.5);\n  \n  vec4 gx1=ixy1*(1./7.);\n  vec4 gy1=fract(floor(gx1)*(1./7.))-.5;\n  gx1=fract(gx1);\n  vec4 gz1=vec4(.5)-abs(gx1)-abs(gy1);\n  vec4 sz1=step(gz1,vec4(0.));\n  gx1-=sz1*(step(0.,gx1)-.5);\n  gy1-=sz1*(step(0.,gy1)-.5);\n  \n  vec3 g000=vec3(gx0.x,gy0.x,gz0.x);\n  vec3 g100=vec3(gx0.y,gy0.y,gz0.y);\n  vec3 g010=vec3(gx0.z,gy0.z,gz0.z);\n  vec3 g110=vec3(gx0.w,gy0.w,gz0.w);\n  vec3 g001=vec3(gx1.x,gy1.x,gz1.x);\n  vec3 g101=vec3(gx1.y,gy1.y,gz1.y);\n  vec3 g011=vec3(gx1.z,gy1.z,gz1.z);\n  vec3 g111=vec3(gx1.w,gy1.w,gz1.w);\n  \n  vec4 norm0=taylorInvSqrt(vec4(dot(g000,g000),dot(g010,g010),dot(g100,g100),dot(g110,g110)));\n  g000*=norm0.x;\n  g010*=norm0.y;\n  g100*=norm0.z;\n  g110*=norm0.w;\n  vec4 norm1=taylorInvSqrt(vec4(dot(g001,g001),dot(g011,g011),dot(g101,g101),dot(g111,g111)));\n  g001*=norm1.x;\n  g011*=norm1.y;\n  g101*=norm1.z;\n  g111*=norm1.w;\n  \n  float n000=dot(g000,Pf0);\n  float n100=dot(g100,vec3(Pf1.x,Pf0.yz));\n  float n010=dot(g010,vec3(Pf0.x,Pf1.y,Pf0.z));\n  float n110=dot(g110,vec3(Pf1.xy,Pf0.z));\n  float n001=dot(g001,vec3(Pf0.xy,Pf1.z));\n  float n101=dot(g101,vec3(Pf1.x,Pf0.y,Pf1.z));\n  float n011=dot(g011,vec3(Pf0.x,Pf1.yz));\n  float n111=dot(g111,Pf1);\n  \n  vec3 fade_xyz=fade(Pf0);\n  vec4 n_z=mix(vec4(n000,n100,n010,n110),vec4(n001,n101,n011,n111),fade_xyz.z);\n  vec2 n_yz=mix(n_z.xy,n_z.zw,fade_xyz.y);\n  float n_xyz=mix(n_yz.x,n_yz.y,fade_xyz.x);\n  return 2.2*n_xyz;\n}\n\nfloat rand(vec2 co){\n  return fract(sin(dot(co,vec2(12.9898,78.233)))*43758.5453);\n}\n\nmat3 rotation3dY(float angle){\n  float s=sin(angle);\n  float c=cos(angle);\n  \n  float scaler=pow(E*E*1.2,smoothstep(0.,animationTime,time)*animationSpeed);\n  \n  return mat3(\n    c*scaler,0.,-s*scaler,\n    0.,scaler,0.,\n    s*scaler,0.,c*scaler\n  );\n}\n\nvoid main(){\n  vUv=position.xy+vec2(.5);\n  vec3 finalPos=pos+position*.1;\n  \n  float particleSize=cnoise(pos*5.)*7.+7.;\n  \n  vec3 worldPos=rotation3dY((time)*.01*(.1+particleSize*.5))*pos;\n  \n  vec3 particlePosition=(modelMatrix*vec4(worldPos,1.)).xyz;\n  \n  vec4 viewPos=viewMatrix*vec4(particlePosition,1.);\n  \n  viewPos.xyz+=position*(.02+.05*particleSize);\n  \n  gl_Position=projectionMatrix*viewPos;\n  \n}";
 
 },{}],"e5jie":[function(require,module,exports) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
