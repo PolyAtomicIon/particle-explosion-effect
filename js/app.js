@@ -112,13 +112,13 @@ export default class Sketch extends Core {
 
   morph() {
     if (!this.particleCloud.isMorphingEnabled) {
-      this.changeExposure(0.45);
-      // this.changeExposure(0.2);
-      // this.changeBloomStrength(0.5);
+      // this.changeExposure(0.45);
+      this.changeExposure(0.2);
+      this.changeBloomStrength(0.5);
     }
     else {
       this.changeExposure(1);
-      // this.changeBloomStrength(1.1);
+      this.changeBloomStrength(1.2);
     }
     this.particleCloud.morph(this.time);
   }
@@ -138,7 +138,7 @@ export default class Sketch extends Core {
   }
 
   addObjects() {
-    const count = 3500;
+    const count = 8500;
     const duration = 0.9;
     const speed = 1.9;
 
@@ -151,7 +151,7 @@ export default class Sketch extends Core {
 
     let minRadius = 0.01;
     let maxRadius = 0.5;
-    const minGapRadius = 0.05;
+    const minGapRadius = 0.02;
     const maxGapRadius = 0.3;
 
     for (let i = 0; i < 3; i++) {
@@ -220,6 +220,15 @@ export default class Sketch extends Core {
     this.renderManager();
     this.composer.render();
     this.particleCloud.render(this.time);
+
+    if (this.time >= this.cameraMoving) {
+      this.moveCameraOnPointerMove();
+      if (this.time - this.cameraMoving < 0.1 && this.particleCloud.isMorphingEnabled) {
+        const currentAzimuthAngle = this.controls.azimuthAngle;
+        this.controls.minAzimuthAngle = currentAzimuthAngle - THREE.MathUtils.degToRad(1.5);
+        this.controls.maxAzimuthAngle = currentAzimuthAngle + THREE.MathUtils.degToRad(1.5);
+      }
+    }
 
     requestAnimationFrame(this.render.bind(this));
   }

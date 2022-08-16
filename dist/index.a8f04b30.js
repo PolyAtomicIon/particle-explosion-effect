@@ -618,8 +618,14 @@ class Sketch extends _coreDefault.default {
         });
     }
     morph() {
-        if (!this.particleCloud.isMorphingEnabled) this.changeExposure(0.45);
-        else this.changeExposure(1);
+        if (!this.particleCloud.isMorphingEnabled) {
+            // this.changeExposure(0.45);
+            this.changeExposure(0.2);
+            this.changeBloomStrength(0.5);
+        } else {
+            this.changeExposure(1);
+            this.changeBloomStrength(1.2);
+        }
         this.particleCloud.morph(this.time);
     }
     changeExposure(value) {
@@ -635,7 +641,7 @@ class Sketch extends _coreDefault.default {
         });
     }
     addObjects() {
-        const count = 3500;
+        const count = 8500;
         const duration = 0.9;
         const speed = 1.9;
         this.particleCloud.createShaderMaterial({
@@ -644,7 +650,7 @@ class Sketch extends _coreDefault.default {
         }, duration, speed, 0);
         let minRadius = 0.01;
         let maxRadius = 0.5;
-        const minGapRadius = 0.05;
+        const minGapRadius = 0.02;
         const maxGapRadius = 0.3;
         for(let i = 0; i < 3; i++){
             let mesh = this.particleCloud.createParticleCloud(count, minRadius, maxRadius);
@@ -726,6 +732,14 @@ class Sketch extends _coreDefault.default {
         this.renderManager();
         this.composer.render();
         this.particleCloud.render(this.time);
+        if (this.time >= this.cameraMoving) {
+            this.moveCameraOnPointerMove();
+            if (this.time - this.cameraMoving < 0.1 && this.particleCloud.isMorphingEnabled) {
+                const currentAzimuthAngle = this.controls.azimuthAngle;
+                this.controls.minAzimuthAngle = currentAzimuthAngle - _three.MathUtils.degToRad(1.5);
+                this.controls.maxAzimuthAngle = currentAzimuthAngle + _three.MathUtils.degToRad(1.5);
+            }
+        }
         requestAnimationFrame(this.render.bind(this));
     }
 }
@@ -37759,23 +37773,23 @@ class Core {
         this.renderer.toneMapping = _three.ReinhardToneMapping;
         this.container.appendChild(this.renderer.domElement);
         this.camera = new _three.PerspectiveCamera(45, this.aspect, 0.00001, 1000);
-        this.camera.position.set(-50, 80, 0);
+        this.camera.position.set(-50, 60, 0);
         this.camera.aspect = this.width / this.height;
         _cameraControlsDefault.default.install({
             THREE: _three
         });
         this.controls = new _cameraControlsDefault.default(this.camera, this.renderer.domElement);
         this.controls.setTarget(0, 0, 0, true);
-        const degreeInRad = _three.MathUtils.degToRad(25);
-        const minDegree = _three.MathUtils.degToRad(20);
-        const maxDegree = _three.MathUtils.degToRad(30);
+        const degreeInRad = _three.MathUtils.degToRad(45);
+        const minDegree = _three.MathUtils.degToRad(35);
+        const maxDegree = _three.MathUtils.degToRad(55);
         this.controls.minPolarAngle = minDegree;
         this.controls.maxPolarAngle = maxDegree;
         this.controls.minAzimuthAngle = minDegree;
         this.controls.maxAzimuthAngle = maxDegree;
         this.controls.rotatePolarTo(degreeInRad, true);
         this.controls.draggingDampingFactor = 0.1;
-        this.controls.azimuthRotateSpeed = 0.35;
+        this.controls.azimuthRotateSpeed = 0.5;
         this.controls.polarRotateSpeed = 0.5;
         this.controls.dollySpeed = 0.75;
         this.cameraMoving = 0;
@@ -37892,14 +37906,6 @@ class Core {
         if (!this.isPlaying) return;
         this.renderer.clear();
         this.renderer.clearDepth();
-        if (this.time >= this.cameraMoving) {
-            this.moveCameraOnPointerMove();
-            if (this.time - this.cameraMoving < 0.1) {
-                const currentAzimuthAngle = this.controls.azimuthAngle;
-                this.controls.minAzimuthAngle = currentAzimuthAngle - _three.MathUtils.degToRad(1.5);
-                this.controls.maxAzimuthAngle = currentAzimuthAngle + _three.MathUtils.degToRad(1.5);
-            }
-        }
         this.time += 0.01;
         this.updateControls();
     }

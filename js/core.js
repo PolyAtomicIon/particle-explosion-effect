@@ -55,7 +55,7 @@ export default class Core {
 
     this.camera.position.set(
       -50,
-      80,
+      60,
       0
     );
     this.camera.aspect = this.width / this.height;
@@ -64,9 +64,9 @@ export default class Core {
     this.controls = new CameraControls(this.camera, this.renderer.domElement);
     this.controls.setTarget(0, 0, 0, true);
 
-    const degreeInRad = THREE.MathUtils.degToRad(25);
-    const minDegree = THREE.MathUtils.degToRad(20);
-    const maxDegree = THREE.MathUtils.degToRad(30);
+    const degreeInRad = THREE.MathUtils.degToRad(45);
+    const minDegree = THREE.MathUtils.degToRad(35);
+    const maxDegree = THREE.MathUtils.degToRad(55);
     this.controls.minPolarAngle = minDegree;
     this.controls.maxPolarAngle = maxDegree;
     this.controls.minAzimuthAngle = minDegree;
@@ -75,7 +75,7 @@ export default class Core {
     this.controls.rotatePolarTo(degreeInRad, true);
 
     this.controls.draggingDampingFactor = 0.1;
-    this.controls.azimuthRotateSpeed = 0.35;
+    this.controls.azimuthRotateSpeed = 0.5;
     this.controls.polarRotateSpeed = 0.5;
     this.controls.dollySpeed = 0.75;
     this.cameraMoving = 0;
@@ -266,15 +266,6 @@ export default class Core {
 
     this.renderer.clear();
     this.renderer.clearDepth();
-
-    if (this.time >= this.cameraMoving) {
-      this.moveCameraOnPointerMove();
-      if (this.time - this.cameraMoving < 0.1) {
-        const currentAzimuthAngle = this.controls.azimuthAngle;
-        this.controls.minAzimuthAngle = currentAzimuthAngle - THREE.MathUtils.degToRad(1.5);
-        this.controls.maxAzimuthAngle = currentAzimuthAngle + THREE.MathUtils.degToRad(1.5);
-      }
-    }
 
     this.time += 0.01;
     this.updateControls();
