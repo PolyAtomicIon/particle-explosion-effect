@@ -100,7 +100,7 @@ export default class ParticleCloud {
       resolution: { value: new THREE.Vector4() },
       u_resolution: { value: resolution },
       animationTime: { value: 0.9 },
-      animationSpeed: { value: 2.3 },
+      animationSpeed: { value: 2.25 },
     };
 
     this.billboardMaterial = new THREE.ShaderMaterial({
@@ -131,7 +131,7 @@ export default class ParticleCloud {
 
     for (let i = 0; i < count; i++) {
       const x = 1 * Math.random() - .5;
-      const y = 1 * Math.random() - .5;
+      const y = 0.5 * Math.random() - .25;
       const z = 1 * Math.random() - .5;
 
       pos.set([

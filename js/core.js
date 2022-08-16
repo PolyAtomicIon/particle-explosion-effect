@@ -47,15 +47,15 @@ export default class Core {
     this.container.appendChild(this.renderer.domElement);
 
     this.camera = new THREE.PerspectiveCamera(
-      45,
+      60,
       this.aspect,
       0.00001,
       1000
     );
 
     this.camera.position.set(
-      -50,
-      60,
+      0,
+      65,
       0
     );
     this.camera.aspect = this.width / this.height;
@@ -64,20 +64,19 @@ export default class Core {
     this.controls = new CameraControls(this.camera, this.renderer.domElement);
     this.controls.setTarget(0, 0, 0, true);
 
-    const degreeInRad = THREE.MathUtils.degToRad(45);
+    const degreeInRad = THREE.MathUtils.degToRad(40);
     const minDegree = THREE.MathUtils.degToRad(35);
-    const maxDegree = THREE.MathUtils.degToRad(55);
+    const maxDegree = THREE.MathUtils.degToRad(45);
     this.controls.minPolarAngle = minDegree;
     this.controls.maxPolarAngle = maxDegree;
     this.controls.minAzimuthAngle = minDegree;
     this.controls.maxAzimuthAngle = maxDegree;
 
     this.controls.rotatePolarTo(degreeInRad, true);
+    this.controls.truck(15, 18);
 
-    this.controls.draggingDampingFactor = 0.1;
-    this.controls.azimuthRotateSpeed = 0.5;
-    this.controls.polarRotateSpeed = 0.5;
-    this.controls.dollySpeed = 0.75;
+    this.controls.dampingFactor = 0.025;
+    this.controls.draggingDampingFactor = 0.05;
     this.cameraMoving = 0;
 
     this.updateControls();

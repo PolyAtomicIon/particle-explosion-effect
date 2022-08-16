@@ -47,14 +47,15 @@ export default class Sketch extends Core {
     }
     this.changeExposure(0.4)
     const degreeInRad = THREE.MathUtils.degToRad(87);
-    this.controls.minPolarAngle = degreeInRad - THREE.MathUtils.degToRad(1.5);
-    this.controls.maxPolarAngle = degreeInRad + THREE.MathUtils.degToRad(1.5);
+    this.controls.minPolarAngle = -Infinity;
+    this.controls.maxPolarAngle = Infinity;
     this.controls.minAzimuthAngle = -Infinity;
     this.controls.maxAzimuthAngle = Infinity;
 
     const pos = this.controls._target;
-    this.controls.restThreshold = 10;
-    this.cameraMoving = this.time + 1.5;
+    this.controls.restThreshold = 3;
+    this.controls.dampingFactor = 0.03;
+    this.cameraMoving = this.time + 2;
 
     await Promise.all([
       this.controls.moveTo(position.x, position.y, position.z, true),
@@ -67,12 +68,14 @@ export default class Sketch extends Core {
         degreeInRad,
         true
       ),
-      this.controls.dollyTo(55, true),
+      this.controls.dollyTo(50, true),
     ]);
 
     this.controls.dampingFactor = 0.05;
     this.controls.restThreshold = 0.01;
-    // this.changeExposure(0.9);s
+    this.controls.minPolarAngle = degreeInRad - THREE.MathUtils.degToRad(1.5);
+    this.controls.maxPolarAngle = degreeInRad + THREE.MathUtils.degToRad(1.5);
+    this.changeExposure(0.9);
 
     this.updateControls();
   }
