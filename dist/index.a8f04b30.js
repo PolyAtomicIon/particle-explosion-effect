@@ -559,7 +559,7 @@ class Sketch extends _coreDefault.default {
         this.settings = {
             morph: false,
             exposure: 1,
-            bloomStrength: 1.2,
+            bloomStrength: 1,
             bloomThreshold: 0,
             bloomRadius: 0
         };
@@ -586,7 +586,7 @@ class Sketch extends _coreDefault.default {
             this.changeBloomStrength(0.5);
         } else {
             this.changeExposure(0.9);
-            this.changeBloomStrength(1.2);
+            this.changeBloomStrength(1);
         }
         this.particleCloud.morph(this.time);
     }
@@ -627,7 +627,7 @@ class Sketch extends _coreDefault.default {
             this.controls.dollyTo(25, true), 
         ]);
         await Promise.all([
-            this.controls.setLookAt(pos.x, pos.y, pos.z, 0, 0, 0, true),
+            this.controls.setLookAt(pos.x, pos.y, pos.z, 0, 20, 0, true),
             this.controls.rotatePolarTo(degreeInRad, true),
             this.controls.dollyTo(55, true), 
         ]);
@@ -643,8 +643,6 @@ class Sketch extends _coreDefault.default {
             this.morph();
         }
         this.isDetailedViewActive = false;
-        const rotationDegree = 40;
-        const degreeInRad = _three.MathUtils.degToRad(rotationDegree);
         this.enableCameraMovement(1.8);
         this.resetCameraControlsRotationLimits();
         this.setCameraControlsSpeed({
@@ -652,20 +650,13 @@ class Sketch extends _coreDefault.default {
             dampingFactor: 0.03
         });
         await Promise.all([
-            this.controls.moveTo(0, 0, 0, true),
             this.controls.setTarget(0, 0, 0, true),
             this.controls.setLookAt(0, 0, 0, 0, 0, 0, true),
-            this.controls.reset(true), 
+            this.controls.reset(true),
+            this.controls.rotatePolarTo(this.initialDegreeInRad, true), 
         ]);
-        await Promise.all([
-            this.controls.rotatePolarTo(degreeInRad, true), 
-        ]);
-        await Promise.all([
-            this.controls.truck(0, 18, true),
-            this.controls.dolly(-10.5, true)
-        ]);
-        this.setCameraControlsSpeed({});
         this.updateControls();
+        this.setCameraControlsSpeed({});
     }
     addObjects() {
         const count = 8500;
@@ -742,6 +733,7 @@ class Sketch extends _coreDefault.default {
             mesh.position.x = this.points[i].x;
             mesh.position.y = this.points[i].y;
             mesh.position.z = this.points[i].z;
+            mesh.position.y += 20;
             mesh.callback = ()=>{
                 this.cameraAnimation(mesh.position);
             };
@@ -37816,24 +37808,24 @@ class Core {
     }
     setCamera() {
         this.camera = new _three.PerspectiveCamera(60, this.aspect, 0.00001, 1000);
-        this.camera.position.set(0, 65, 0);
+        this.camera.position.set(0, 95, 0);
         this.camera.aspect = this.aspect;
     }
     setCameraControls() {
         this.controls.setTarget(0, 0, 0);
         this.controls.draggingDampingFactor = 0.05;
         this.controls.mouseButtons.left = _cameraControlsDefault.default.ACTION.NONE;
-        const degreeInRad = _three.MathUtils.degToRad(40);
-        this.controls.rotatePolarTo(degreeInRad);
+        this.initialDegreeInRad = _three.MathUtils.degToRad(30);
+        this.controls.rotatePolarTo(this.initialDegreeInRad);
         this.updateCameraControlsRotationLimits();
-        this.controls.truck(0, 18);
+        // this.controls.truck(0, 18);
         this.updateControls();
     }
     updateCameraControlsRotationLimits() {
         const isCameraMovementFinished = this.time - this.cameraMoving <= 0.05;
         if (!isCameraMovementFinished) return;
         const deltaDegree = this.isDetailedViewActive ? 1.5 : 7;
-        this.updateAzimuthAngle(deltaDegree * 3);
+        this.updateAzimuthAngle(deltaDegree * 1.5);
         this.updatePolarAngle(deltaDegree);
     }
     updateAzimuthAngle(deltaDegree = 1.5) {
@@ -39909,6 +39901,7 @@ class ParticleCloud {
         geo.setAttribute("uv", new _three.BufferAttribute(pos, 2));
         const mesh = new _three.Mesh(geo, this.material);
         mesh.frustumCulled = false;
+        mesh.position.y += 20;
         return mesh;
     }
     createBillboardMaterial(resolution) {
@@ -39969,6 +39962,7 @@ class ParticleCloud {
         geo.setAttribute("uv", new _three.BufferAttribute(pos, 2));
         const mesh = new _three.Mesh(geo, this.billboardMaterial);
         mesh.frustumCulled = false;
+        mesh.position.y += 20;
         return mesh;
     }
     render(time) {

@@ -45,7 +45,7 @@ export default class Sketch extends Core {
     this.settings = {
       morph: false,
       exposure: 1,
-      bloomStrength: 1.2,
+      bloomStrength: 1.0,
       bloomThreshold: 0,
       bloomRadius: 0
     };
@@ -74,7 +74,7 @@ export default class Sketch extends Core {
     }
     else {
       this.changeExposure(.9);
-      this.changeBloomStrength(1.2);
+      this.changeBloomStrength(1.);
     }
     this.particleCloud.morph(this.time);
   }
@@ -121,7 +121,7 @@ export default class Sketch extends Core {
       this.controls.dollyTo(25, true),
     ]);
     await Promise.all([
-      this.controls.setLookAt(pos.x, pos.y, pos.z, 0, 0, 0, true),
+      this.controls.setLookAt(pos.x, pos.y, pos.z, 0, 20, 0, true),
       this.controls.rotatePolarTo(
         degreeInRad,
         true
@@ -146,9 +146,7 @@ export default class Sketch extends Core {
     }
 
     this.isDetailedViewActive = false;
-    const rotationDegree = 40;
-    const degreeInRad = THREE.MathUtils.degToRad(rotationDegree);
-    
+
     this.enableCameraMovement(1.8);
     this.resetCameraControlsRotationLimits();
     this.setCameraControlsSpeed({
@@ -157,23 +155,14 @@ export default class Sketch extends Core {
     });
 
     await Promise.all([
-      this.controls.moveTo(0, 0, 0, true),
       this.controls.setTarget(0, 0, 0, true),
       this.controls.setLookAt(0, 0, 0, 0, 0, 0, true),
       this.controls.reset(true),
+      this.controls.rotatePolarTo(this.initialDegreeInRad, true),
     ]);
 
-    await Promise.all([
-      this.controls.rotatePolarTo(degreeInRad, true),
-    ]);
-
-    await Promise.all([
-      this.controls.truck(0, 18, true),
-      this.controls.dolly(-10.5, true)
-    ]);
-
-    this.setCameraControlsSpeed({});
     this.updateControls();
+    this.setCameraControlsSpeed({});
   }
 
   addObjects() {
@@ -237,6 +226,8 @@ export default class Sketch extends Core {
       mesh.position.x = this.points[i].x;
       mesh.position.y = this.points[i].y;
       mesh.position.z = this.points[i].z;
+      mesh.position.y += 20;
+
 
       mesh.callback = () => {
         this.cameraAnimation(mesh.position)

@@ -88,6 +88,7 @@ export default class ParticleCloud {
 
     const mesh = new THREE.Mesh(geo, this.material);
     mesh.frustumCulled = false;
+    mesh.position.y += 20;
 
     return mesh;
   }
@@ -144,6 +145,7 @@ export default class ParticleCloud {
 
     const mesh = new THREE.Mesh(geo, this.billboardMaterial);
     mesh.frustumCulled = false;
+    mesh.position.y += 20;
 
     return mesh;
   }
