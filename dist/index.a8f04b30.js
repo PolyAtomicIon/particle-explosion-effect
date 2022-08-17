@@ -587,11 +587,10 @@ class Sketch extends _coreDefault.default {
     }
     morph() {
         if (!this.particleCloud.isMorphingEnabled) {
-            // this.changeExposure(0.45);
-            this.changeExposure(0.2);
+            this.changeExposure(0.45);
             this.changeBloomStrength(0.5);
         } else {
-            this.changeExposure(1);
+            this.changeExposure(0.9);
             this.changeBloomStrength(1.2);
         }
         this.particleCloud.morph(this.time);
@@ -612,14 +611,14 @@ class Sketch extends _coreDefault.default {
         x: 0,
         y: 0,
         z: 0
-    }) {
+    }, rotationDegree = 87) {
         this.isDetailedViewActive = true;
         if (!this.particleCloud.isMorphingEnabled) {
             this.settings.morph = true;
             this.gui.morph = true;
             this.morph();
         }
-        const degreeInRad = _three.MathUtils.degToRad(87);
+        const degreeInRad = _three.MathUtils.degToRad(rotationDegree);
         const pos = this.controls._target;
         this.changeExposure(0.4);
         this.enableCameraMovement();
@@ -638,7 +637,36 @@ class Sketch extends _coreDefault.default {
             this.controls.dollyTo(55, true), 
         ]);
         this.setCameraControlsSpeed({});
-        this.changeExposure(0.9);
+        this.updateControls();
+    }
+    async camerResetaAnimation() {
+        if (!this.isDetailedViewActive) return;
+        if (this.particleCloud.isMorphingEnabled) {
+            this.settings.morph = false;
+            this.gui.morph = false;
+            this.morph();
+        }
+        const rotationDegree = 40;
+        this.isDetailedViewActive = false;
+        const degreeInRad = _three.MathUtils.degToRad(rotationDegree);
+        const pos = this.controls._target;
+        this.enableCameraMovement();
+        this.resetCameraControlsRotationLimits();
+        this.setCameraControlsSpeed({
+            restThreshold: 3,
+            dampingFactor: 0.03
+        });
+        await Promise.all([
+            this.controls.setLookAt(pos.x, pos.y, pos.z, 0, 0, 0, true),
+            this.controls.rotateAzimuthTo(degreeInRad, true),
+            this.controls.rotatePolarTo(degreeInRad, true),
+            this.controls.dolly(-45, true), 
+        ]);
+        await Promise.all([
+            this.controls.dolly(-55, true),
+            this.controls.truck(0, 18, true), 
+        ]);
+        this.setCameraControlsSpeed({});
         this.updateControls();
     }
     addObjects() {
@@ -718,6 +746,9 @@ class Sketch extends _coreDefault.default {
             mesh.position.z = this.points[i].z;
             mesh.callback = ()=>{
                 this.cameraAnimation(mesh.position);
+            };
+            if (i == 0) mesh.callback = ()=>{
+                this.camerResetaAnimation();
             };
             this.meshes.push(mesh);
             this.scene.add(mesh);
