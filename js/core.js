@@ -34,7 +34,7 @@ export default class Core {
 
     this.setRenderer();
     this.setCamera();
-    
+
     CameraControls.install({ THREE: THREE });
     this.controls = new CameraControls(this.camera, this.renderer.domElement);
     this.setCameraControls();
@@ -77,28 +77,29 @@ export default class Core {
   setCameraControls() {
     this.controls.setTarget(0, 0, 0);
     this.controls.draggingDampingFactor = 0.05;
+    this.controls.mouseButtons.left = CameraControls.ACTION.NONE;
 
     const degreeInRad = THREE.MathUtils.degToRad(40);
-    this.controls.rotatePolarTo(degreeInRad, );
-    this.controls.rotateAzimuthTo(degreeInRad, );
+    this.controls.rotatePolarTo(degreeInRad,);
     this.updateCameraControlsRotationLimits();
 
-    this.controls.truck(15, 18);
+    this.controls.truck(0, 18);
 
     this.updateControls();
   }
 
   updateCameraControlsRotationLimits() {
-    const isCameraMovementFinished = this.time - this.cameraMoving < 0.1;
+    const isCameraMovementFinished = (this.time - this.cameraMoving <= 0.05);
     if (!isCameraMovementFinished)
       return;
 
-    const deltaDegree = this.isDetailedViewActive ? 1.5 : 5.;
-    this.updateAzimuthAngle(deltaDegree);
+    const deltaDegree = this.isDetailedViewActive ? 1.5 : 7.;
+    this.updateAzimuthAngle(deltaDegree * 3);
     this.updatePolarAngle(deltaDegree);
   }
 
   updateAzimuthAngle(deltaDegree = 1.5) {
+    this.controls.normalizeRotations();
     const currentAzimuthAngle = this.controls.azimuthAngle;
     const deltaAngle = THREE.MathUtils.degToRad(deltaDegree);
 
@@ -265,7 +266,10 @@ export default class Core {
     this.camera.updateProjectionMatrix();
 
     this.onResizeEvents.forEach(fn => {
-      fn();
+      fn({
+        x: this.width,
+        y: this.height
+      });
     });
 
     this.renderer.render(this.scene, this.camera);

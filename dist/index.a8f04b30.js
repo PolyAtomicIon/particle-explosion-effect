@@ -534,12 +534,7 @@ class Sketch extends _coreDefault.default {
         super(options);
         this.setGuiSettings();
         this.particleCloud = new _particleCloudDefault.default();
-        this.onResizeEvents.push(()=>{
-            this.particleCloud.resize({
-                x: this.width,
-                y: this.height
-            });
-        });
+        this.onResizeEvents.push(this.particleCloud.resize.bind(this.particleCloud));
         this.onRenderEvents.push(this.particleCloud.render.bind(this.particleCloud));
         this.onRenderEvents.push(this.applyHoverEffect.bind(this));
         this.addObjects();
@@ -621,7 +616,7 @@ class Sketch extends _coreDefault.default {
         const degreeInRad = _three.MathUtils.degToRad(rotationDegree);
         const pos = this.controls._target;
         this.changeExposure(0.4);
-        this.enableCameraMovement(2.5);
+        this.enableCameraMovement(2);
         this.resetCameraControlsRotationLimits();
         this.setCameraControlsSpeed({
             restThreshold: 3,
@@ -650,20 +645,24 @@ class Sketch extends _coreDefault.default {
         this.isDetailedViewActive = false;
         const rotationDegree = 40;
         const degreeInRad = _three.MathUtils.degToRad(rotationDegree);
+        this.enableCameraMovement(1.8);
         this.resetCameraControlsRotationLimits();
         this.setCameraControlsSpeed({
             restThreshold: 3,
             dampingFactor: 0.03
         });
-        this.enableCameraMovement();
         await Promise.all([
-            this.controls.reset(true),
-            this.controls.rotatePolarTo(degreeInRad, true),
-            this.controls.rotateAzimuthTo(degreeInRad, true), 
+            this.controls.moveTo(0, 0, 0, true),
+            this.controls.setTarget(0, 0, 0, true),
+            this.controls.setLookAt(0, 0, 0, 0, 0, 0, true),
+            this.controls.reset(true), 
+        ]);
+        await Promise.all([
+            this.controls.rotatePolarTo(degreeInRad, true), 
         ]);
         await Promise.all([
             this.controls.truck(0, 18, true),
-            this.controls.dolly(-18.5, true), 
+            this.controls.dolly(-10.5, true)
         ]);
         this.setCameraControlsSpeed({});
         this.updateControls();
@@ -37823,21 +37822,22 @@ class Core {
     setCameraControls() {
         this.controls.setTarget(0, 0, 0);
         this.controls.draggingDampingFactor = 0.05;
+        this.controls.mouseButtons.left = _cameraControlsDefault.default.ACTION.NONE;
         const degreeInRad = _three.MathUtils.degToRad(40);
         this.controls.rotatePolarTo(degreeInRad);
-        this.controls.rotateAzimuthTo(degreeInRad);
         this.updateCameraControlsRotationLimits();
-        this.controls.truck(15, 18);
+        this.controls.truck(0, 18);
         this.updateControls();
     }
     updateCameraControlsRotationLimits() {
-        const isCameraMovementFinished = this.time - this.cameraMoving < 0.1;
+        const isCameraMovementFinished = this.time - this.cameraMoving <= 0.05;
         if (!isCameraMovementFinished) return;
-        const deltaDegree = this.isDetailedViewActive ? 1.5 : 5;
-        this.updateAzimuthAngle(deltaDegree);
+        const deltaDegree = this.isDetailedViewActive ? 1.5 : 7;
+        this.updateAzimuthAngle(deltaDegree * 3);
         this.updatePolarAngle(deltaDegree);
     }
     updateAzimuthAngle(deltaDegree = 1.5) {
+        this.controls.normalizeRotations();
         const currentAzimuthAngle = this.controls.azimuthAngle;
         const deltaAngle = _three.MathUtils.degToRad(deltaDegree);
         this.controls.minAzimuthAngle = currentAzimuthAngle - deltaAngle;
@@ -37941,7 +37941,10 @@ class Core {
         this.camera.aspect = this.width / this.height;
         this.camera.updateProjectionMatrix();
         this.onResizeEvents.forEach((fn)=>{
-            fn();
+            fn({
+                x: this.width,
+                y: this.height
+            });
         });
         this.renderer.render(this.scene, this.camera);
     }

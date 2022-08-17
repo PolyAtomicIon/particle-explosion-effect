@@ -15,12 +15,7 @@ export default class Sketch extends Core {
     this.setGuiSettings();
 
     this.particleCloud = new ParticleCloud();
-    this.onResizeEvents.push(() => {
-      this.particleCloud.resize({
-        x: this.width,
-        y: this.height
-      });
-    });
+    this.onResizeEvents.push(this.particleCloud.resize.bind(this.particleCloud));
     this.onRenderEvents.push(this.particleCloud.render.bind(this.particleCloud));
     this.onRenderEvents.push(this.applyHoverEffect.bind(this));
 
@@ -114,7 +109,7 @@ export default class Sketch extends Core {
     const pos = this.controls._target;
 
     this.changeExposure(0.4);
-    this.enableCameraMovement(2.5);
+    this.enableCameraMovement(2.);
     this.resetCameraControlsRotationLimits();
     this.setCameraControlsSpeed({
       restThreshold: 3,
@@ -153,22 +148,28 @@ export default class Sketch extends Core {
     this.isDetailedViewActive = false;
     const rotationDegree = 40;
     const degreeInRad = THREE.MathUtils.degToRad(rotationDegree);
+    
+    this.enableCameraMovement(1.8);
     this.resetCameraControlsRotationLimits();
     this.setCameraControlsSpeed({
       restThreshold: 3,
       dampingFactor: 0.03
     });
-    this.enableCameraMovement();
 
     await Promise.all([
+      this.controls.moveTo(0, 0, 0, true),
+      this.controls.setTarget(0, 0, 0, true),
+      this.controls.setLookAt(0, 0, 0, 0, 0, 0, true),
       this.controls.reset(true),
+    ]);
+
+    await Promise.all([
       this.controls.rotatePolarTo(degreeInRad, true),
-      this.controls.rotateAzimuthTo(degreeInRad, true),
     ]);
 
     await Promise.all([
       this.controls.truck(0, 18, true),
-      this.controls.dolly(-18.5, true),
+      this.controls.dolly(-10.5, true)
     ]);
 
     this.setCameraControlsSpeed({});
