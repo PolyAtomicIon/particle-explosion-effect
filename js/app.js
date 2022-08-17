@@ -159,7 +159,7 @@ export default class Sketch extends Core {
     this.resetCameraControlsRotationLimits();
     this.setCameraControlsSpeed({
       restThreshold: 3,
-      dampingFactor: 0.03
+      dampingFactor: 0.025
     });
 
     await Promise.all([
