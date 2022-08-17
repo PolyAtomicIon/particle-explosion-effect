@@ -1,12 +1,16 @@
 import * as THREE from "three";
 import CameraControls from "camera-controls";
-import { DEG2RAD } from "three/src/math/MathUtils";
 
 export default class Core {
   constructor(options) {
 
     this.scene = new THREE.Scene();
     // this.scene.background = this.color("#ff00ff");
+
+    this.container = options.dom;
+    this.width = this.container.offsetWidth || this.container.innerWidth;
+    this.height = this.container.offsetHeight || this.container.innerHeight;
+    this.aspect = this.width / this.height;
 
     this.clock = new THREE.Clock();
     this.raycaster = new THREE.Raycaster();
@@ -21,21 +25,26 @@ export default class Core {
       y: 0
     };
     this.pointer = new THREE.Vector2();
+    this.time = 0;
+    this.cameraMoving = 0;
+    this.isPlaying = true;
+    this.isDetailedViewActive = false;
+    this.onResizeEvents = [];
+    this.onRenderEvents = [];
 
-    this.container = options.dom;
-    this.width = this.container.offsetWidth || this.container.innerWidth;
-    this.height = this.container.offsetHeight || this.container.innerHeight;
-    this.aspect = this.width / this.height;
+    this.setRenderer();
+    this.setCamera();
+    this.setCameraControls();
+    this.setLighting();
+    this.setEventListeners();
+  }
 
-    // console.log(this.height, this.width)
-
+  setRenderer() {
     this.renderer = new THREE.WebGLRenderer({
       transparent: true,
       alpha: true,
       antialias: true,
-      logarithmicDepthBuffer: true
     });
-
     // this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(this.width, this.height);
     // this.renderer.setClearColor(0x000000, 1);
@@ -43,52 +52,93 @@ export default class Core {
     this.renderer.outputEncoding = THREE.sRGBEncoding;
     this.renderer.autoClear = false;
     this.renderer.toneMapping = THREE.ReinhardToneMapping;
-
     this.container.appendChild(this.renderer.domElement);
+  }
 
+  setCamera() {
     this.camera = new THREE.PerspectiveCamera(
       60,
       this.aspect,
       0.00001,
       1000
     );
-
     this.camera.position.set(
       0,
       65,
       0
     );
-    this.camera.aspect = this.width / this.height;
+    this.camera.aspect = this.aspect;
+  }
 
+  async setCameraControls() {
     CameraControls.install({ THREE: THREE });
     this.controls = new CameraControls(this.camera, this.renderer.domElement);
-    this.controls.setTarget(0, 0, 0, true);
+
+    this.controls.setTarget(0, 0, 0);
+    this.controls.draggingDampingFactor = 0.05;
 
     const degreeInRad = THREE.MathUtils.degToRad(40);
-    const minDegree = THREE.MathUtils.degToRad(35);
-    const maxDegree = THREE.MathUtils.degToRad(45);
-    this.controls.minPolarAngle = minDegree;
-    this.controls.maxPolarAngle = maxDegree;
-    this.controls.minAzimuthAngle = minDegree;
-    this.controls.maxAzimuthAngle = maxDegree;
+    this.controls.rotatePolarTo(degreeInRad);
+    this.controls.rotateAzimuthTo(degreeInRad);
+    this.updateCameraControlsRotationLimits();
 
-    this.controls.rotatePolarTo(degreeInRad, true);
     this.controls.truck(15, 18);
 
-    this.controls.dampingFactor = 0.025;
-    this.controls.draggingDampingFactor = 0.05;
-    this.cameraMoving = 0;
-
     this.updateControls();
+  }
 
-    this.time = 0;
-    this.isPlaying = true;
+  updateCameraControlsRotationLimits() {
+    const isCameraMovementFinished = this.time - this.cameraMoving < 0.1;
+    if (!isCameraMovementFinished)
+      return;
 
-    this.setLighting();
+    const deltaDegree = this.isDetailedViewActive ? 1.5 : 5.;
+    this.updateAzimuthAngle(deltaDegree);
+    this.updatePolarAngle(deltaDegree);
+  }
 
-    // const axesHelper = new THREE.AxesHelper(50);
-    // this.scene.add(axesHelper);
+  updateAzimuthAngle(deltaDegree = 1.5) {
+    const currentAzimuthAngle = this.controls.azimuthAngle;
+    const deltaAngle = THREE.MathUtils.degToRad(deltaDegree);
 
+    this.controls.minAzimuthAngle = currentAzimuthAngle - deltaAngle;
+    this.controls.maxAzimuthAngle = currentAzimuthAngle + deltaAngle;
+  }
+
+  updatePolarAngle(deltaDegree = 1.5) {
+    const currentPolarAngle = this.controls.polarAngle;
+    const deltaAngle = THREE.MathUtils.degToRad(deltaDegree);
+
+    this.controls.minPolarAngle = currentPolarAngle - deltaAngle;
+    this.controls.maxPolarAngle = currentPolarAngle + deltaAngle;
+  }
+
+  setCameraControlsSpeed({
+    restThreshold = 0.05,
+    dampingFactor = 0.05
+  }) {
+    this.controls.dampingFactor = dampingFactor;
+    this.controls.restThreshold = restThreshold;
+  }
+
+  enableCameraMovement(duration = 2) {
+    this.cameraMoving = this.time + duration;
+  }
+
+  resetCameraControlsRotationLimits() {
+    this.controls.minPolarAngle = -Infinity;
+    this.controls.maxPolarAngle = Infinity;
+    this.controls.minAzimuthAngle = -Infinity;
+    this.controls.maxAzimuthAngle = Infinity;
+  }
+
+  setLighting() {
+    this.scene.add(new THREE.AmbientLight(0x404040));
+    const pointLight = new THREE.PointLight(0xffffff, 1);
+    this.camera.add(pointLight);
+  }
+
+  setEventListeners() {
     window.addEventListener(
       'pointermove',
       this.onPointerMove.bind(this),
@@ -108,7 +158,9 @@ export default class Core {
   }
 
   onPointerMove(event) {
-    if (event.isPrimary === false || this.time < this.cameraMoving) {
+    const isCameraMoving = (this.time < this.cameraMoving);
+    if (event.isPrimary === false || isCameraMoving) {
+      // cancel action
       this.mouse.x = 0;
       this.mouse.y = 0;
       return;
@@ -193,20 +245,8 @@ export default class Core {
 
   }
 
-  setLighting() {
-    this.scene.add(new THREE.AmbientLight(0x404040));
-    const pointLight = new THREE.PointLight(0xffffff, 1);
-    this.camera.add(pointLight);
-  }
-
   color(color) {
     return new THREE.Color(color);
-  }
-
-  fixHeightProblem() {
-    // The trick to viewport units on mobile browsers
-    const vh = window.innerHeight * 0.01;
-    document.documentElement.style.setProperty('--vh', `${vh}px`);
   }
 
   setupResize() {
@@ -223,7 +263,17 @@ export default class Core {
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
 
+    this.onResizeEvents.forEach(fn => {
+      fn();
+    });
+
     this.renderer.render(this.scene, this.camera);
+  }
+
+  fixHeightProblem() {
+    // The trick to viewport units on mobile browsers
+    const vh = window.innerHeight * 0.01;
+    document.documentElement.style.setProperty('--vh', `${vh}px`);
   }
 
   stop() {
@@ -242,8 +292,9 @@ export default class Core {
   }
 
   moveCameraOnPointerMove() {
-    if (this.mouse.x == 0) {
-      return
+    const isActionCancelled = (this.mouse.x == 0);
+    if (isActionCancelled) {
+      return;
     }
 
     const speed = 0.1;
@@ -262,6 +313,10 @@ export default class Core {
 
   renderManager() {
     if (!this.isPlaying) return;
+
+    this.onRenderEvents.forEach(fn => {
+      fn(this.time);
+    });
 
     this.renderer.clear();
     this.renderer.clearDepth();

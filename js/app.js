@@ -12,19 +12,26 @@ export default class Sketch extends Core {
   constructor(options) {
     super(options);
 
-    this.materials = [];
-
-    this.settings();
+    this.setGuiSettings();
 
     this.particleCloud = new ParticleCloud();
+    this.onResizeEvents.push(() => {
+      this.particleCloud.resize({
+        x: this.width,
+        y: this.height
+      });
+    });
+    this.onRenderEvents.push(this.particleCloud.render.bind(this.particleCloud));
+    this.onRenderEvents.push(this.applyHoverEffect.bind(this));
+
     this.addObjects();
     this.addBillboard();
     this.addPointsForCamera();
 
     this.setPostProcessing();
+    this.setupResize();
     this.resize();
     this.render();
-    this.setupResize();
   }
 
   setPostProcessing() {
@@ -39,48 +46,7 @@ export default class Sketch extends Core {
     this.composer.addPass(this.bloomPass);
   }
 
-  async cameraAnimation(position = { x: 0, y: 0, z: 0 }) {
-    if (!this.particleCloud.isMorphingEnabled) {
-      this.settings.morph = true;
-      this.gui.morph = true;
-      this.morph();
-    }
-    this.changeExposure(0.4)
-    const degreeInRad = THREE.MathUtils.degToRad(87);
-    this.controls.minPolarAngle = -Infinity;
-    this.controls.maxPolarAngle = Infinity;
-    this.controls.minAzimuthAngle = -Infinity;
-    this.controls.maxAzimuthAngle = Infinity;
-
-    const pos = this.controls._target;
-    this.controls.restThreshold = 3;
-    this.controls.dampingFactor = 0.03;
-    this.cameraMoving = this.time + 2;
-
-    await Promise.all([
-      this.controls.moveTo(position.x, position.y, position.z, true),
-      this.controls.dollyTo(25, true),
-    ]);
-
-    await Promise.all([
-      this.controls.setLookAt(pos.x, pos.y, pos.z, 0, 0, 0, true),
-      this.controls.rotatePolarTo(
-        degreeInRad,
-        true
-      ),
-      this.controls.dollyTo(50, true),
-    ]);
-
-    this.controls.dampingFactor = 0.05;
-    this.controls.restThreshold = 0.01;
-    this.controls.minPolarAngle = degreeInRad - THREE.MathUtils.degToRad(1.5);
-    this.controls.maxPolarAngle = degreeInRad + THREE.MathUtils.degToRad(1.5);
-    this.changeExposure(0.9);
-
-    this.updateControls();
-  }
-
-  settings() {
+  setGuiSettings() {
     this.settings = {
       morph: false,
       exposure: 1,
@@ -103,13 +69,6 @@ export default class Sketch extends Core {
     });
     this.gui.add(this.settings, 'bloomRadius', 0.0, 1.0).step(0.01).onChange((value) => {
       this.bloomPass.radius = Number(value);
-    });
-  }
-
-  resize() {
-    this.particleCloud.resize({
-      x: this.width,
-      y: this.height
     });
   }
 
@@ -138,6 +97,46 @@ export default class Sketch extends Core {
       strength: Number(value),
       duration: 0.5,
     })
+  }
+
+  async cameraAnimation(position = { x: 0, y: 0, z: 0 }) {
+    this.isDetailedViewActive = true;
+
+    if (!this.particleCloud.isMorphingEnabled) {
+      this.settings.morph = true;
+      this.gui.morph = true;
+      this.morph();
+    }
+
+    const degreeInRad = THREE.MathUtils.degToRad(87);
+    const pos = this.controls._target;
+
+    this.changeExposure(0.4);
+    this.enableCameraMovement();
+    this.resetCameraControlsRotationLimits();
+    this.setCameraControlsSpeed({
+      restThreshold: 3,
+      dampingFactor: 0.03
+    });
+
+    await Promise.all([
+      this.controls.moveTo(position.x, position.y, position.z, true),
+      this.controls.dollyTo(25, true),
+    ]);
+
+    await Promise.all([
+      this.controls.setLookAt(pos.x, pos.y, pos.z, 0, 0, 0, true),
+      this.controls.rotatePolarTo(
+        degreeInRad,
+        true
+      ),
+      this.controls.dollyTo(55, true),
+    ]);
+
+    this.setCameraControlsSpeed({});
+    this.changeExposure(0.9);
+
+    this.updateControls();
   }
 
   addObjects() {
@@ -177,7 +176,7 @@ export default class Sketch extends Core {
     this.particleCloud.createBillboardMaterial(
       { x: this.width, y: this.height },
     );
-    
+
     this.scene.add(this.particleCloud.createBillboard());
   }
 
@@ -219,19 +218,18 @@ export default class Sketch extends Core {
 
   }
 
+  applyHoverEffect() {
+    const isCameraMoving = this.time < this.cameraMoving;
+    if (isCameraMoving)
+      return;
+
+    this.updateCameraControlsRotationLimits();
+    this.moveCameraOnPointerMove();
+  }
+
   render() {
     this.renderManager();
     this.composer.render();
-    this.particleCloud.render(this.time);
-
-    if (this.time >= this.cameraMoving) {
-      this.moveCameraOnPointerMove();
-      if (this.time - this.cameraMoving < 0.1 && this.particleCloud.isMorphingEnabled) {
-        const currentAzimuthAngle = this.controls.azimuthAngle;
-        this.controls.minAzimuthAngle = currentAzimuthAngle - THREE.MathUtils.degToRad(1.5);
-        this.controls.maxAzimuthAngle = currentAzimuthAngle + THREE.MathUtils.degToRad(1.5);
-      }
-    }
 
     requestAnimationFrame(this.render.bind(this));
   }

@@ -532,16 +532,23 @@ var _gsapDefault = parcelHelpers.interopDefault(_gsap);
 class Sketch extends _coreDefault.default {
     constructor(options){
         super(options);
-        this.materials = [];
-        this.settings();
+        this.setGuiSettings();
         this.particleCloud = new _particleCloudDefault.default();
+        this.onResizeEvents.push(()=>{
+            this.particleCloud.resize({
+                x: this.width,
+                y: this.height
+            });
+        });
+        this.onRenderEvents.push(this.particleCloud.render.bind(this.particleCloud));
+        this.onRenderEvents.push(this.applyHoverEffect.bind(this));
         this.addObjects();
         this.addBillboard();
         this.addPointsForCamera();
         this.setPostProcessing();
+        this.setupResize();
         this.resize();
         this.render();
-        this.setupResize();
     }
     setPostProcessing() {
         const renderScene = new _renderPassJs.RenderPass(this.scene, this.camera);
@@ -553,43 +560,7 @@ class Sketch extends _coreDefault.default {
         this.composer.addPass(renderScene);
         this.composer.addPass(this.bloomPass);
     }
-    async cameraAnimation(position = {
-        x: 0,
-        y: 0,
-        z: 0
-    }) {
-        if (!this.particleCloud.isMorphingEnabled) {
-            this.settings.morph = true;
-            this.gui.morph = true;
-            this.morph();
-        }
-        this.changeExposure(0.4);
-        const degreeInRad = _three.MathUtils.degToRad(87);
-        this.controls.minPolarAngle = -Infinity;
-        this.controls.maxPolarAngle = Infinity;
-        this.controls.minAzimuthAngle = -Infinity;
-        this.controls.maxAzimuthAngle = Infinity;
-        const pos = this.controls._target;
-        this.controls.restThreshold = 3;
-        this.controls.dampingFactor = 0.03;
-        this.cameraMoving = this.time + 2;
-        await Promise.all([
-            this.controls.moveTo(position.x, position.y, position.z, true),
-            this.controls.dollyTo(25, true), 
-        ]);
-        await Promise.all([
-            this.controls.setLookAt(pos.x, pos.y, pos.z, 0, 0, 0, true),
-            this.controls.rotatePolarTo(degreeInRad, true),
-            this.controls.dollyTo(50, true), 
-        ]);
-        this.controls.dampingFactor = 0.05;
-        this.controls.restThreshold = 0.01;
-        this.controls.minPolarAngle = degreeInRad - _three.MathUtils.degToRad(1.5);
-        this.controls.maxPolarAngle = degreeInRad + _three.MathUtils.degToRad(1.5);
-        this.changeExposure(0.9);
-        this.updateControls();
-    }
-    settings() {
+    setGuiSettings() {
         this.settings = {
             morph: false,
             exposure: 1,
@@ -614,12 +585,6 @@ class Sketch extends _coreDefault.default {
             this.bloomPass.radius = Number(value);
         });
     }
-    resize() {
-        this.particleCloud.resize({
-            x: this.width,
-            y: this.height
-        });
-    }
     morph() {
         if (!this.particleCloud.isMorphingEnabled) {
             // this.changeExposure(0.45);
@@ -642,6 +607,39 @@ class Sketch extends _coreDefault.default {
             strength: Number(value),
             duration: 0.5
         });
+    }
+    async cameraAnimation(position = {
+        x: 0,
+        y: 0,
+        z: 0
+    }) {
+        this.isDetailedViewActive = true;
+        if (!this.particleCloud.isMorphingEnabled) {
+            this.settings.morph = true;
+            this.gui.morph = true;
+            this.morph();
+        }
+        const degreeInRad = _three.MathUtils.degToRad(87);
+        const pos = this.controls._target;
+        this.changeExposure(0.4);
+        this.enableCameraMovement();
+        this.resetCameraControlsRotationLimits();
+        this.setCameraControlsSpeed({
+            restThreshold: 3,
+            dampingFactor: 0.03
+        });
+        await Promise.all([
+            this.controls.moveTo(position.x, position.y, position.z, true),
+            this.controls.dollyTo(25, true), 
+        ]);
+        await Promise.all([
+            this.controls.setLookAt(pos.x, pos.y, pos.z, 0, 0, 0, true),
+            this.controls.rotatePolarTo(degreeInRad, true),
+            this.controls.dollyTo(55, true), 
+        ]);
+        this.setCameraControlsSpeed({});
+        this.changeExposure(0.9);
+        this.updateControls();
     }
     addObjects() {
         const count = 8500;
@@ -731,18 +729,15 @@ class Sketch extends _coreDefault.default {
         // });
         }
     }
+    applyHoverEffect() {
+        const isCameraMoving = this.time < this.cameraMoving;
+        if (isCameraMoving) return;
+        this.updateCameraControlsRotationLimits();
+        this.moveCameraOnPointerMove();
+    }
     render() {
         this.renderManager();
         this.composer.render();
-        this.particleCloud.render(this.time);
-        if (this.time >= this.cameraMoving) {
-            this.moveCameraOnPointerMove();
-            if (this.time - this.cameraMoving < 0.1 && this.particleCloud.isMorphingEnabled) {
-                const currentAzimuthAngle = this.controls.azimuthAngle;
-                this.controls.minAzimuthAngle = currentAzimuthAngle - _three.MathUtils.degToRad(1.5);
-                this.controls.maxAzimuthAngle = currentAzimuthAngle + _three.MathUtils.degToRad(1.5);
-            }
-        }
         requestAnimationFrame(this.render.bind(this));
     }
 }
@@ -37738,11 +37733,14 @@ parcelHelpers.defineInteropFlag(exports);
 var _three = require("three");
 var _cameraControls = require("camera-controls");
 var _cameraControlsDefault = parcelHelpers.interopDefault(_cameraControls);
-var _mathUtils = require("three/src/math/MathUtils");
 class Core {
     constructor(options){
         this.scene = new _three.Scene();
         // this.scene.background = this.color("#ff00ff");
+        this.container = options.dom;
+        this.width = this.container.offsetWidth || this.container.innerWidth;
+        this.height = this.container.offsetHeight || this.container.innerHeight;
+        this.aspect = this.width / this.height;
         this.clock = new _three.Clock();
         this.raycaster = new _three.Raycaster();
         this.mouse = {
@@ -37756,16 +37754,23 @@ class Core {
             y: 0
         };
         this.pointer = new _three.Vector2();
-        this.container = options.dom;
-        this.width = this.container.offsetWidth || this.container.innerWidth;
-        this.height = this.container.offsetHeight || this.container.innerHeight;
-        this.aspect = this.width / this.height;
-        // console.log(this.height, this.width)
+        this.time = 0;
+        this.cameraMoving = 0;
+        this.isPlaying = true;
+        this.isDetailedViewActive = false;
+        this.onResizeEvents = [];
+        this.onRenderEvents = [];
+        this.setRenderer();
+        this.setCamera();
+        this.setCameraControls();
+        this.setLighting();
+        this.setEventListeners();
+    }
+    setRenderer() {
         this.renderer = new _three.WebGLRenderer({
             transparent: true,
             alpha: true,
-            antialias: true,
-            logarithmicDepthBuffer: true
+            antialias: true
         });
         // this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.setSize(this.width, this.height);
@@ -37775,32 +37780,64 @@ class Core {
         this.renderer.autoClear = false;
         this.renderer.toneMapping = _three.ReinhardToneMapping;
         this.container.appendChild(this.renderer.domElement);
+    }
+    setCamera() {
         this.camera = new _three.PerspectiveCamera(60, this.aspect, 0.00001, 1000);
         this.camera.position.set(0, 65, 0);
-        this.camera.aspect = this.width / this.height;
+        this.camera.aspect = this.aspect;
+    }
+    async setCameraControls() {
         _cameraControlsDefault.default.install({
             THREE: _three
         });
         this.controls = new _cameraControlsDefault.default(this.camera, this.renderer.domElement);
-        this.controls.setTarget(0, 0, 0, true);
-        const degreeInRad = _three.MathUtils.degToRad(40);
-        const minDegree = _three.MathUtils.degToRad(35);
-        const maxDegree = _three.MathUtils.degToRad(45);
-        this.controls.minPolarAngle = minDegree;
-        this.controls.maxPolarAngle = maxDegree;
-        this.controls.minAzimuthAngle = minDegree;
-        this.controls.maxAzimuthAngle = maxDegree;
-        this.controls.rotatePolarTo(degreeInRad, true);
-        this.controls.truck(15, 18);
-        this.controls.dampingFactor = 0.025;
+        this.controls.setTarget(0, 0, 0);
         this.controls.draggingDampingFactor = 0.05;
-        this.cameraMoving = 0;
+        const degreeInRad = _three.MathUtils.degToRad(40);
+        this.controls.rotatePolarTo(degreeInRad);
+        this.controls.rotateAzimuthTo(degreeInRad);
+        this.updateCameraControlsRotationLimits();
+        this.controls.truck(15, 18);
         this.updateControls();
-        this.time = 0;
-        this.isPlaying = true;
-        this.setLighting();
-        // const axesHelper = new THREE.AxesHelper(50);
-        // this.scene.add(axesHelper);
+    }
+    updateCameraControlsRotationLimits() {
+        const isCameraMovementFinished = this.time - this.cameraMoving < 0.1;
+        if (!isCameraMovementFinished) return;
+        const deltaDegree = this.isDetailedViewActive ? 1.5 : 5;
+        this.updateAzimuthAngle(deltaDegree);
+        this.updatePolarAngle(deltaDegree);
+    }
+    updateAzimuthAngle(deltaDegree = 1.5) {
+        const currentAzimuthAngle = this.controls.azimuthAngle;
+        const deltaAngle = _three.MathUtils.degToRad(deltaDegree);
+        this.controls.minAzimuthAngle = currentAzimuthAngle - deltaAngle;
+        this.controls.maxAzimuthAngle = currentAzimuthAngle + deltaAngle;
+    }
+    updatePolarAngle(deltaDegree = 1.5) {
+        const currentPolarAngle = this.controls.polarAngle;
+        const deltaAngle = _three.MathUtils.degToRad(deltaDegree);
+        this.controls.minPolarAngle = currentPolarAngle - deltaAngle;
+        this.controls.maxPolarAngle = currentPolarAngle + deltaAngle;
+    }
+    setCameraControlsSpeed({ restThreshold =0.05 , dampingFactor =0.05  }) {
+        this.controls.dampingFactor = dampingFactor;
+        this.controls.restThreshold = restThreshold;
+    }
+    enableCameraMovement(duration = 2) {
+        this.cameraMoving = this.time + duration;
+    }
+    resetCameraControlsRotationLimits() {
+        this.controls.minPolarAngle = -Infinity;
+        this.controls.maxPolarAngle = Infinity;
+        this.controls.minAzimuthAngle = -Infinity;
+        this.controls.maxAzimuthAngle = Infinity;
+    }
+    setLighting() {
+        this.scene.add(new _three.AmbientLight(4210752));
+        const pointLight = new _three.PointLight(16777215, 1);
+        this.camera.add(pointLight);
+    }
+    setEventListeners() {
         window.addEventListener('pointermove', this.onPointerMove.bind(this));
         window.addEventListener('touchmove', this.TouchMoveManager.bind(this), false);
         window.addEventListener('touchstart', this.TouchStartManager.bind(this), false);
@@ -37808,7 +37845,9 @@ class Core {
         window.addEventListener('click', this.ClickManager.bind(this), false);
     }
     onPointerMove(event) {
-        if (event.isPrimary === false || this.time < this.cameraMoving) {
+        const isCameraMoving = this.time < this.cameraMoving;
+        if (event.isPrimary === false || isCameraMoving) {
+            // cancel action
             this.mouse.x = 0;
             this.mouse.y = 0;
             return;
@@ -37857,18 +37896,8 @@ class Core {
             return;
         }
     }
-    setLighting() {
-        this.scene.add(new _three.AmbientLight(4210752));
-        const pointLight = new _three.PointLight(16777215, 1);
-        this.camera.add(pointLight);
-    }
     color(color) {
         return new _three.Color(color);
-    }
-    fixHeightProblem() {
-        // The trick to viewport units on mobile browsers
-        const vh = window.innerHeight * 0.01;
-        document.documentElement.style.setProperty('--vh', `${vh}px`);
     }
     setupResize() {
         window.addEventListener("resize", this.resize.bind(this), false);
@@ -37881,7 +37910,15 @@ class Core {
         this.renderer.render(this.scene, this.camera);
         this.camera.aspect = this.width / this.height;
         this.camera.updateProjectionMatrix();
+        this.onResizeEvents.forEach((fn)=>{
+            fn();
+        });
         this.renderer.render(this.scene, this.camera);
+    }
+    fixHeightProblem() {
+        // The trick to viewport units on mobile browsers
+        const vh = window.innerHeight * 0.01;
+        document.documentElement.style.setProperty('--vh', `${vh}px`);
     }
     stop() {
         this.isPlaying = false;
@@ -37896,7 +37933,8 @@ class Core {
         this.controls.update(this.clock.getDelta());
     }
     moveCameraOnPointerMove() {
-        if (this.mouse.x == 0) return;
+        const isActionCancelled = this.mouse.x == 0;
+        if (isActionCancelled) return;
         const speed = 0.1;
         const cameraPos = this.controls.camera.position;
         let deltaX = (this.mouse.x - cameraPos.x) * speed;
@@ -37906,6 +37944,9 @@ class Core {
     }
     renderManager() {
         if (!this.isPlaying) return;
+        this.onRenderEvents.forEach((fn)=>{
+            fn(this.time);
+        });
         this.renderer.clear();
         this.renderer.clearDepth();
         this.time += 0.01;
@@ -37914,7 +37955,7 @@ class Core {
 }
 exports.default = Core;
 
-},{"three":"ktPTu","camera-controls":"8UL70","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","three/src/math/MathUtils":"cuzU2"}],"8UL70":[function(require,module,exports) {
+},{"three":"ktPTu","camera-controls":"8UL70","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"8UL70":[function(require,module,exports) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "default", ()=>CameraControls
@@ -39738,183 +39779,6 @@ function createBoundingSphere(object3d, out) {
     });
     boundingSphere.radius = Math.sqrt(maxRadiusSq);
     return boundingSphere;
-}
-
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"cuzU2":[function(require,module,exports) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-parcelHelpers.export(exports, "DEG2RAD", ()=>DEG2RAD
-);
-parcelHelpers.export(exports, "RAD2DEG", ()=>RAD2DEG
-);
-parcelHelpers.export(exports, "generateUUID", ()=>generateUUID
-);
-parcelHelpers.export(exports, "clamp", ()=>clamp
-);
-parcelHelpers.export(exports, "euclideanModulo", ()=>euclideanModulo
-);
-parcelHelpers.export(exports, "mapLinear", ()=>mapLinear
-);
-parcelHelpers.export(exports, "inverseLerp", ()=>inverseLerp
-);
-parcelHelpers.export(exports, "lerp", ()=>lerp
-);
-parcelHelpers.export(exports, "damp", ()=>damp
-);
-parcelHelpers.export(exports, "pingpong", ()=>pingpong
-);
-parcelHelpers.export(exports, "smoothstep", ()=>smoothstep
-);
-parcelHelpers.export(exports, "smootherstep", ()=>smootherstep
-);
-parcelHelpers.export(exports, "randInt", ()=>randInt
-);
-parcelHelpers.export(exports, "randFloat", ()=>randFloat
-);
-parcelHelpers.export(exports, "randFloatSpread", ()=>randFloatSpread
-);
-parcelHelpers.export(exports, "seededRandom", ()=>seededRandom
-);
-parcelHelpers.export(exports, "degToRad", ()=>degToRad
-);
-parcelHelpers.export(exports, "radToDeg", ()=>radToDeg
-);
-parcelHelpers.export(exports, "isPowerOfTwo", ()=>isPowerOfTwo
-);
-parcelHelpers.export(exports, "ceilPowerOfTwo", ()=>ceilPowerOfTwo
-);
-parcelHelpers.export(exports, "floorPowerOfTwo", ()=>floorPowerOfTwo
-);
-parcelHelpers.export(exports, "setQuaternionFromProperEuler", ()=>setQuaternionFromProperEuler
-);
-const _lut = [];
-for(let i = 0; i < 256; i++)_lut[i] = (i < 16 ? '0' : '') + i.toString(16);
-let _seed = 1234567;
-const DEG2RAD = Math.PI / 180;
-const RAD2DEG = 180 / Math.PI;
-// http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript/21963136#21963136
-function generateUUID() {
-    const d0 = Math.random() * 4294967295 | 0;
-    const d1 = Math.random() * 4294967295 | 0;
-    const d2 = Math.random() * 4294967295 | 0;
-    const d3 = Math.random() * 4294967295 | 0;
-    const uuid = _lut[d0 & 255] + _lut[d0 >> 8 & 255] + _lut[d0 >> 16 & 255] + _lut[d0 >> 24 & 255] + '-' + _lut[d1 & 255] + _lut[d1 >> 8 & 255] + '-' + _lut[d1 >> 16 & 15 | 64] + _lut[d1 >> 24 & 255] + '-' + _lut[d2 & 63 | 128] + _lut[d2 >> 8 & 255] + '-' + _lut[d2 >> 16 & 255] + _lut[d2 >> 24 & 255] + _lut[d3 & 255] + _lut[d3 >> 8 & 255] + _lut[d3 >> 16 & 255] + _lut[d3 >> 24 & 255];
-    // .toUpperCase() here flattens concatenated strings to save heap memory space.
-    return uuid.toUpperCase();
-}
-function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
-}
-// compute euclidian modulo of m % n
-// https://en.wikipedia.org/wiki/Modulo_operation
-function euclideanModulo(n, m) {
-    return (n % m + m) % m;
-}
-// Linear mapping from range <a1, a2> to range <b1, b2>
-function mapLinear(x, a1, a2, b1, b2) {
-    return b1 + (x - a1) * (b2 - b1) / (a2 - a1);
-}
-// https://www.gamedev.net/tutorials/programming/general-and-gameplay-programming/inverse-lerp-a-super-useful-yet-often-overlooked-function-r5230/
-function inverseLerp(x, y, value) {
-    if (x !== y) return (value - x) / (y - x);
-    else return 0;
-}
-// https://en.wikipedia.org/wiki/Linear_interpolation
-function lerp(x, y, t) {
-    return (1 - t) * x + t * y;
-}
-// http://www.rorydriscoll.com/2016/03/07/frame-rate-independent-damping-using-lerp/
-function damp(x, y, lambda, dt) {
-    return lerp(x, y, 1 - Math.exp(-lambda * dt));
-}
-// https://www.desmos.com/calculator/vcsjnyz7x4
-function pingpong(x, length = 1) {
-    return length - Math.abs(euclideanModulo(x, length * 2) - length);
-}
-// http://en.wikipedia.org/wiki/Smoothstep
-function smoothstep(x, min, max) {
-    if (x <= min) return 0;
-    if (x >= max) return 1;
-    x = (x - min) / (max - min);
-    return x * x * (3 - 2 * x);
-}
-function smootherstep(x, min, max) {
-    if (x <= min) return 0;
-    if (x >= max) return 1;
-    x = (x - min) / (max - min);
-    return x * x * x * (x * (x * 6 - 15) + 10);
-}
-// Random integer from <low, high> interval
-function randInt(low, high) {
-    return low + Math.floor(Math.random() * (high - low + 1));
-}
-// Random float from <low, high> interval
-function randFloat(low, high) {
-    return low + Math.random() * (high - low);
-}
-// Random float from <-range/2, range/2> interval
-function randFloatSpread(range) {
-    return range * (0.5 - Math.random());
-}
-// Deterministic pseudo-random float in the interval [ 0, 1 ]
-function seededRandom(s) {
-    if (s !== undefined) _seed = s % 2147483647;
-    // Park-Miller algorithm
-    _seed = _seed * 16807 % 2147483647;
-    return (_seed - 1) / 2147483646;
-}
-function degToRad(degrees) {
-    return degrees * DEG2RAD;
-}
-function radToDeg(radians) {
-    return radians * RAD2DEG;
-}
-function isPowerOfTwo(value) {
-    return (value & value - 1) === 0 && value !== 0;
-}
-function ceilPowerOfTwo(value) {
-    return Math.pow(2, Math.ceil(Math.log(value) / Math.LN2));
-}
-function floorPowerOfTwo(value) {
-    return Math.pow(2, Math.floor(Math.log(value) / Math.LN2));
-}
-function setQuaternionFromProperEuler(q, a, b, c, order) {
-    // Intrinsic Proper Euler Angles - see https://en.wikipedia.org/wiki/Euler_angles
-    // rotations are applied to the axes in the order specified by 'order'
-    // rotation by angle 'a' is applied first, then by angle 'b', then by angle 'c'
-    // angles are in radians
-    const cos = Math.cos;
-    const sin = Math.sin;
-    const c2 = cos(b / 2);
-    const s2 = sin(b / 2);
-    const c13 = cos((a + c) / 2);
-    const s13 = sin((a + c) / 2);
-    const c1_3 = cos((a - c) / 2);
-    const s1_3 = sin((a - c) / 2);
-    const c3_1 = cos((c - a) / 2);
-    const s3_1 = sin((c - a) / 2);
-    switch(order){
-        case 'XYX':
-            q.set(c2 * s13, s2 * c1_3, s2 * s1_3, c2 * c13);
-            break;
-        case 'YZY':
-            q.set(s2 * s1_3, c2 * s13, s2 * c1_3, c2 * c13);
-            break;
-        case 'ZXZ':
-            q.set(s2 * c1_3, s2 * s1_3, c2 * s13, c2 * c13);
-            break;
-        case 'XZX':
-            q.set(c2 * s13, s2 * s3_1, s2 * c3_1, c2 * c13);
-            break;
-        case 'YXY':
-            q.set(s2 * c3_1, c2 * s13, s2 * s3_1, c2 * c13);
-            break;
-        case 'ZYZ':
-            q.set(s2 * s3_1, s2 * c3_1, c2 * s13, c2 * c13);
-            break;
-        default:
-            console.warn('THREE.MathUtils: .setQuaternionFromProperEuler() encountered an unknown order: ' + order);
-    }
 }
 
 },{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"7AZIm":[function(require,module,exports) {
