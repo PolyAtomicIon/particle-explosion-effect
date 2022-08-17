@@ -114,7 +114,7 @@ export default class Sketch extends Core {
     const pos = this.controls._target;
 
     this.changeExposure(0.4);
-    this.enableCameraMovement();
+    this.enableCameraMovement(2.5);
     this.resetCameraControlsRotationLimits();
     this.setCameraControlsSpeed({
       restThreshold: 3,
@@ -134,13 +134,13 @@ export default class Sketch extends Core {
       this.controls.dollyTo(55, true),
     ]);
 
+    this.changeExposure(.9);
     this.setCameraControlsSpeed({});
     this.updateControls();
   }
 
-  async camerResetaAnimation(
-  ) {
-    if( !this.isDetailedViewActive ){
+  async camerResetAnimation() {
+    if (!this.isDetailedViewActive) {
       return;
     }
 
@@ -150,34 +150,25 @@ export default class Sketch extends Core {
       this.morph();
     }
 
-    const rotationDegree = 40;
     this.isDetailedViewActive = false;
+    const rotationDegree = 40;
     const degreeInRad = THREE.MathUtils.degToRad(rotationDegree);
-    const pos = this.controls._target;
-
-    this.enableCameraMovement();
     this.resetCameraControlsRotationLimits();
     this.setCameraControlsSpeed({
       restThreshold: 3,
-      dampingFactor: 0.025
+      dampingFactor: 0.03
     });
+    this.enableCameraMovement();
 
     await Promise.all([
-      this.controls.setLookAt(pos.x, pos.y, pos.z, 0, 0, 0, true),
-      this.controls.rotateAzimuthTo(
-        degreeInRad,
-        true
-      ),
-      this.controls.rotatePolarTo(
-        degreeInRad,
-        true
-      ),
-      this.controls.dolly(-45, true),
+      this.controls.reset(true),
+      this.controls.rotatePolarTo(degreeInRad, true),
+      this.controls.rotateAzimuthTo(degreeInRad, true),
     ]);
 
     await Promise.all([
-      this.controls.dolly(-55, true),
       this.controls.truck(0, 18, true),
+      this.controls.dolly(-18.5, true),
     ]);
 
     this.setCameraControlsSpeed({});
@@ -252,7 +243,7 @@ export default class Sketch extends Core {
 
       if (i == 0) {
         mesh.callback = () => {
-          this.camerResetaAnimation();
+          this.camerResetAnimation();
         }
       }
 

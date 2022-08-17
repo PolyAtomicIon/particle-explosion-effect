@@ -265,7 +265,7 @@ void main(){
 	vec3 finalPos=pos+position*.1;
 	
 	// float particleSize=cnoise(pos*5.)*3.+3.5;
-	float particleSize=cnoise(pos*5.)*cnoise(pos*5.)*10.+4.;
+	float particleSize=cnoise(pos*5.)*cnoise(pos*5.)*10.+5.;
 	
 	vec3 worldPos=rotation3dY((time)*.01*(.1+particleSize*.5))*pos;
 	

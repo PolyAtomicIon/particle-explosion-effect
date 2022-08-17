@@ -34,7 +34,11 @@ export default class Core {
 
     this.setRenderer();
     this.setCamera();
+    
+    CameraControls.install({ THREE: THREE });
+    this.controls = new CameraControls(this.camera, this.renderer.domElement);
     this.setCameraControls();
+
     this.setLighting();
     this.setEventListeners();
   }
@@ -70,16 +74,13 @@ export default class Core {
     this.camera.aspect = this.aspect;
   }
 
-  async setCameraControls() {
-    CameraControls.install({ THREE: THREE });
-    this.controls = new CameraControls(this.camera, this.renderer.domElement);
-
+  setCameraControls() {
     this.controls.setTarget(0, 0, 0);
     this.controls.draggingDampingFactor = 0.05;
 
     const degreeInRad = THREE.MathUtils.degToRad(40);
-    this.controls.rotatePolarTo(degreeInRad);
-    this.controls.rotateAzimuthTo(degreeInRad);
+    this.controls.rotatePolarTo(degreeInRad, );
+    this.controls.rotateAzimuthTo(degreeInRad, );
     this.updateCameraControlsRotationLimits();
 
     this.controls.truck(15, 18);
