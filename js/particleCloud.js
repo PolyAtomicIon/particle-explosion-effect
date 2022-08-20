@@ -4,6 +4,7 @@ import fragment from "./shader/fragment.glsl";
 import vertex from "./shader/vertexParticles.glsl";
 import simpleVertex from "./shader/vertex.glsl";
 import particleTexture from "../particle-texture.png";
+import colorTexture from "../color-tiles.png";
 
 export default class ParticleCloud {
   constructor() {
@@ -12,6 +13,7 @@ export default class ParticleCloud {
 
     this.material = null;
     this.particleTexture = new THREE.TextureLoader().load(particleTexture);
+    this.colorTexture = new THREE.TextureLoader().load(colorTexture);
   }
 
   morph(time) {
@@ -32,6 +34,7 @@ export default class ParticleCloud {
   ) {
     const uniforms = {
       uTexture: { value: this.particleTexture },
+      aTexture: { value: this.colorTexture },
       time: { value: 0 },
       resolution: { value: new THREE.Vector4() },
       u_resolution: { value: resolution },
@@ -56,6 +59,8 @@ export default class ParticleCloud {
       depthWrite: false,
       depthTest: false,
     });
+
+    this.material.toneMapped = false;
   }
 
   createParticleCloud(
@@ -97,6 +102,7 @@ export default class ParticleCloud {
 
     const uniforms = {
       uTexture: { value: this.particleTexture },
+      aTexture: { value: this.colorTexture },
       time: { value: 0 },
       resolution: { value: new THREE.Vector4() },
       u_resolution: { value: resolution },
@@ -118,6 +124,7 @@ export default class ParticleCloud {
       depthWrite: false,
       depthTest: false,
     });
+    this.billboardMaterial.toneMapped = false;
   }
 
   createBillboard() {

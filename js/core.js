@@ -52,10 +52,10 @@ export default class Core {
     // this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(this.width, this.height);
     // this.renderer.setClearColor(0x000000, 1);
-    // this.renderer.physicallyCorrectLights = true;
+    this.renderer.physicallyCorrectLights = true;
     this.renderer.outputEncoding = THREE.sRGBEncoding;
     this.renderer.autoClear = false;
-    this.renderer.toneMapping = THREE.ReinhardToneMapping;
+    this.renderer.toneMapping = THREE.CineonToneMapping;
     this.container.appendChild(this.renderer.domElement);
   }
 
@@ -77,10 +77,10 @@ export default class Core {
   setCameraControls() {
     this.controls.setTarget(0, 0, 0);
     this.controls.draggingDampingFactor = 0.05;
-    this.controls.mouseButtons.left = CameraControls.ACTION.NONE;
+    // this.controls.mouseButtons.left = CameraControls.ACTION.NONE;
 
-    this.initialDegreeInRad = THREE.MathUtils.degToRad(30);
-    this.controls.rotatePolarTo(this.initialDegreeInRad,);
+    this.initialPolarDegreeInRad = THREE.MathUtils.degToRad(30);
+    this.controls.rotatePolarTo(this.initialPolarDegreeInRad,);
     this.updateCameraControlsRotationLimits();
 
     // this.controls.truck(0, 18);
@@ -117,10 +117,17 @@ export default class Core {
 
   setCameraControlsSpeed({
     restThreshold = 0.05,
-    dampingFactor = 0.05
+    dampingFactor = 0.05,
+    dollySpeed = 1,
+    azimuthRotateSpeed = 1,
+    polarRotateSpeed = 1,
   }) {
     this.controls.dampingFactor = dampingFactor;
     this.controls.restThreshold = restThreshold;
+    this.controls.dollySpeed = dollySpeed;
+    this.controls.azimuthRotateSpeed = azimuthRotateSpeed;
+    this.controls.polarRotateSpeed = polarRotateSpeed;
+    this.updateControls();
   }
 
   enableCameraMovement(duration = 2) {
@@ -247,6 +254,18 @@ export default class Core {
 
   }
 
+  getAngleBetweenTwoVectorsInRad(position) {
+    const origin = new THREE.Vector3(0, 0, 10);
+    const posV = new THREE.Vector3(position.x, position.y, position.z);
+    let currentDegree = origin.angleTo(posV);
+  
+    if (position.x <= 0) {
+      currentDegree *= -1;
+    }
+
+    return currentDegree
+  }
+
   color(color) {
     return new THREE.Color(color);
   }
@@ -297,12 +316,13 @@ export default class Core {
   }
 
   moveCameraOnPointerMove() {
+    return
     const isActionCancelled = (this.mouse.x == 0);
     if (isActionCancelled) {
       return;
     }
 
-    const speed = 0.1;
+    const speed = 0.02;
     const cameraPos = this.controls.camera.position;
 
     let deltaX = (this.mouse.x - cameraPos.x) * speed;
@@ -323,8 +343,6 @@ export default class Core {
       fn(this.time);
     });
 
-    this.renderer.clear();
-    this.renderer.clearDepth();
 
     this.time += 0.01;
     this.updateControls();

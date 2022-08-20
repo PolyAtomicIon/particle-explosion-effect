@@ -3,6 +3,8 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 import GUI from "lil-gui";
 import Core from './core';
 import ParticleCloud from "./particleCloud";
+import ParticleCloudC from "./icon1.glb";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
@@ -11,6 +13,20 @@ import gsap from "gsap";
 export default class Sketch extends Core {
   constructor(options) {
     super(options);
+    this.meshes = [];
+    this.points = [
+      { x: 0, y: 0, z: 0 },
+      { x: 40, y: 0, z: 0 },
+      { x: -40, y: 0, z: 0 },
+      { x: 0, y: 0, z: 40 },
+      { x: 0, y: 0, z: -40 },
+      { x: 20, y: 0, z: 20 },
+      { x: -20, y: 0, z: 20 },
+      { x: 20, y: 0, z: -20 },
+      { x: -20, y: 0, z: -20 },
+    ];
+    this.currentActiveTargetIndex = null;
+    this.resetCameraControlsRotationLimits();
 
     this.setGuiSettings();
 
@@ -19,14 +35,42 @@ export default class Sketch extends Core {
     this.onRenderEvents.push(this.particleCloud.render.bind(this.particleCloud));
     this.onRenderEvents.push(this.applyHoverEffect.bind(this));
 
+    this.resetCameraControlsRotationLimits();
+    this.setCameraControlsSpeed({
+      restThreshold: 5,
+      dampingFactor: 0.02,
+      dollySpeed: 0.7,
+      azimuthRotateSpeed: 0.05,
+      polarRotateSpeed: 0.5,
+    });
+
     this.addObjects();
     this.addBillboard();
-    this.addPointsForCamera();
 
     this.setPostProcessing();
     this.setupResize();
     this.resize();
     this.render();
+
+    const loader = new GLTFLoader();
+
+    loader.load(
+      ParticleCloudC,
+      (gltf) => {
+        // console.log(gltf.animations)
+        // this.scene.add(gltf.scene);
+        this.mainMesh = gltf.scene;
+        gltf.animations; // Array<THREE.AnimationClip>
+        this.updateObjectMaterial(this.mainMesh);
+
+        this.addPointsForCamera();
+        // gltf.scene; // THREE.Group
+        // gltf.scenes; // Array<THREE.Group>
+        // gltf.cameras; // Array<THREE.Camera>
+        // gltf.asset; // Object
+
+      }
+    );
   }
 
   setPostProcessing() {
@@ -47,9 +91,25 @@ export default class Sketch extends Core {
       exposure: 1,
       bloomStrength: 1.0,
       bloomThreshold: 0,
-      bloomRadius: 0
+      bloomRadius: 0,
+      point1: false,
+      point2: false,
+      point3: false,
+      point4: false,
+      point5: false,
+      point6: false,
+      point7: false,
+      point8: false,
+      point9: false,
+      truck1: false,
+      truck2: false,
     };
     this.gui = new GUI();
+    this.points.forEach((point, index) => {
+      this.gui.add(this.settings, "point" + (index + 1).toString()).onChange(() =>
+        this.onTargetChosen(point, index)
+      )
+    })
     this.gui.add(this.settings, "morph").onChange(() => {
       this.morph();
     });
@@ -64,6 +124,12 @@ export default class Sketch extends Core {
     });
     this.gui.add(this.settings, 'bloomRadius', 0.0, 1.0).step(0.01).onChange((value) => {
       this.bloomPass.radius = Number(value);
+    });
+    this.gui.add(this.settings, 'truck1').onChange(() => {
+      this.controls.truck(2, 0, true);
+    });
+    this.gui.add(this.settings, 'truck2').onChange(() => {
+      this.controls.truck(-2, 0, true);
     });
   }
 
@@ -93,9 +159,23 @@ export default class Sketch extends Core {
     })
   }
 
+  async onTargetChosen(point, index) {
+    if (this.currentActiveTargetIndex)
+      this.meshes[this.currentActiveTargetIndex].visible = false;
+
+    if (index == 0) {
+      this.currentActiveTargetIndex = null;
+      this.camerResetAnimation();
+    }
+    else {
+      this.currentActiveTargetIndex = index;
+      this.cameraAnimation(point);
+      this.meshes[index].visible = true;
+    }
+  }
+
   async cameraAnimation(
-    position = { x: 0, y: 0, z: 0 },
-    rotationDegree = 87
+    position = { x: 0, y: 0, z: 0 }
   ) {
     this.isDetailedViewActive = true;
 
@@ -105,32 +185,22 @@ export default class Sketch extends Core {
       this.morph();
     }
 
-    const degreeInRad = THREE.MathUtils.degToRad(rotationDegree);
-    const pos = this.controls._target;
-
     this.changeExposure(0.4);
     this.enableCameraMovement(2.);
+    this.controls.normalizeRotations();
     this.resetCameraControlsRotationLimits();
-    this.setCameraControlsSpeed({
-      restThreshold: 3,
-      dampingFactor: 0.03
-    });
+
+    const azimuthAngle = this.getAngleBetweenTwoVectorsInRad(position);
+    const polarAngle = THREE.MathUtils.degToRad(90);
 
     await Promise.all([
-      this.controls.moveTo(position.x, position.y, position.z, true),
-      this.controls.dollyTo(25, true),
-    ]);
-    await Promise.all([
-      this.controls.setLookAt(pos.x, pos.y, pos.z, 0, 20, 0, true),
-      this.controls.rotatePolarTo(
-        degreeInRad,
-        true
-      ),
-      this.controls.dollyTo(55, true),
+      this.controls.moveTo(position.x, position.y + 20, position.z, true),
+      this.controls.rotatePolarTo(polarAngle, true),
+      this.controls.rotateAzimuthTo(azimuthAngle, true),
+      this.controls.dollyTo(8, true),
+      this.controls.setFocalOffset(3.5, 0, 0, true)
     ]);
 
-    this.changeExposure(.9);
-    this.setCameraControlsSpeed({});
     this.updateControls();
   }
 
@@ -149,26 +219,44 @@ export default class Sketch extends Core {
 
     this.enableCameraMovement(1.8);
     this.resetCameraControlsRotationLimits();
-    this.setCameraControlsSpeed({
-      restThreshold: 3,
-      dampingFactor: 0.03
-    });
+    this.controls.setFocalOffset(0, 0, 0, true);
 
     await Promise.all([
       this.controls.setTarget(0, 0, 0, true),
       this.controls.setLookAt(0, 0, 0, 0, 0, 0, true),
       this.controls.reset(true),
-      this.controls.rotatePolarTo(this.initialDegreeInRad, true),
+      this.controls.rotatePolarTo(this.initialPolarDegreeInRad, true),
     ]);
 
     this.updateControls();
-    this.setCameraControlsSpeed({});
+  }
+
+  updateObjectMaterial(object) {
+    if (object.children) {
+      object.layers.set(1);
+    }
+
+    if (object.material) {
+      object.material.toneMapped = false;
+      object.material.roughness = 5;
+      object.material.depthTest = false;
+      object.material.envMap = false;
+      object.material.flatShading = false;
+      object.material.depthWrite = false;
+      object.material.needsUpdate = true;
+    }
+
+    object.children.forEach(child =>
+      this.updateObjectMaterial(child)
+    );
+
   }
 
   addObjects() {
     const count = 8500;
     const duration = 0.9;
     const speed = 1.9;
+    // const speed = 0;
 
     this.particleCloud.createShaderMaterial(
       { x: this.width, y: this.height },
@@ -182,7 +270,7 @@ export default class Sketch extends Core {
     const minGapRadius = 0.02;
     const maxGapRadius = 0.3;
 
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 1; i++) {
 
       let mesh = this.particleCloud.createParticleCloud(
         count,
@@ -207,40 +295,21 @@ export default class Sketch extends Core {
   }
 
   addPointsForCamera() {
-    const geometry = new THREE.BoxGeometry(3, 3, 3);
-    this.meshes = [];
-    this.points = [
-      { x: 0, y: 0, z: 0 },
-      { x: -40.31063211935775, y: 0, z: -7.5299241136265564 },
-      { x: -0.431651851596488, y: 0, z: 36.735493437942885 },
-      { x: 38.360254480861435, y: 0, z: -4.134071872299652 },
-      { x: 4.151668326034631, y: 0, z: -44.44804748500181 },
-      { x: -29.568267868006334, y: 0, z: 26.032432790631393 },
-      { x: 29.317626022399224, y: 0, z: -36.55709687455183 }
-    ]
+    // const geometry = new THREE.BoxGeometry(3, 3, 3);
 
-    for (let i = 0; i < 7; i++) {
-      const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xebe1e1, transparent: false });
-      const mesh = new THREE.Mesh(geometry, material);
+    for (let i = 0; i < this.points.length; i++) {
+      // const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xebe1e1, transparent: false });
+      // const mesh = new THREE.Mesh(geometry, material);
+
+      const mesh = this.mainMesh.clone();
 
       mesh.position.x = this.points[i].x;
       mesh.position.y = this.points[i].y;
       mesh.position.z = this.points[i].z;
       mesh.position.y += 20;
-
-
-      mesh.callback = () => {
-        this.cameraAnimation(mesh.position)
-      };
-
-      if (i == 0) {
-        mesh.callback = () => {
-          this.camerResetAnimation();
-        }
-      }
-
       this.meshes.push(mesh);
       this.scene.add(mesh);
+      mesh.visible = false;
       // const control = new TransformControls(this.camera, this.renderer.domElement);
       // control.attach(mesh);
       // this.scene.add(control);
@@ -263,7 +332,15 @@ export default class Sketch extends Core {
 
   render() {
     this.renderManager();
+
+    this.renderer.clear();
+
+    this.camera.layers.set(0);
     this.composer.render();
+
+    // this.renderer.clearDepth();
+    this.camera.layers.set(1);
+    this.renderer.render(this.scene, this.camera)
 
     requestAnimationFrame(this.render.bind(this));
   }
