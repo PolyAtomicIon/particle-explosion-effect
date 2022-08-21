@@ -718,8 +718,8 @@ class Sketch extends _coreDefault.default {
             this.gui.morph = true;
             this.morph();
         }
-        this.changeExposure(0.3);
-        this.enableCameraMovement(2);
+        this.changeExposure(0.4);
+        this.enableCameraMovement(1.2);
         this.resetCameraControlsRotationLimits();
         let azimuthAngle = this.getAngleBetweenTwoVectorsInRad(position);
         const polarAngle = _three.MathUtils.degToRad(90);
@@ -740,7 +740,7 @@ class Sketch extends _coreDefault.default {
             this.morph();
         }
         this.isDetailedViewActive = false;
-        this.enableCameraMovement(1.8);
+        this.enableCameraMovement(1);
         this.resetCameraControlsRotationLimits();
         this.controls.setFocalOffset(0, 0, 0, true);
         await Promise.all([
@@ -34244,7 +34244,7 @@ class Core {
     updateCameraControlsRotationLimits() {
         const isCameraMovementFinished = this.time - this.cameraMoving <= 0.05;
         if (!isCameraMovementFinished) return;
-        const deltaDegree = this.isDetailedViewActive ? 1.5 : 7;
+        const deltaDegree = this.isDetailedViewActive ? 7 : 7;
         this.updateAzimuthAngle(deltaDegree * 1.5);
         this.updatePolarAngle(deltaDegree);
     }
@@ -34394,7 +34394,14 @@ class Core {
         this.controls.update(this.clock.getDelta());
     }
     moveCameraOnPointerMove() {
-        return;
+        const isActionCancelled = this.mouse.x == 0;
+        if (isActionCancelled) return;
+        const speed = 2;
+        const cameraPos = this.controls.camera.position;
+        let deltaX = (this.mouse.x - cameraPos.x) * speed;
+        let deltaY = (-this.mouse.y - cameraPos.y) * speed;
+        const degreeInRad = _three.MathUtils.degToRad(0.5);
+        this.controls.rotate(deltaX * degreeInRad, deltaY * degreeInRad, true);
     }
     renderManager() {
         if (!this.isPlaying) return;
@@ -36379,7 +36386,7 @@ class ParticleCloud {
         this.billboardMaterial.toneMapped = false;
     }
     createBillboard() {
-        const count = 2000;
+        const count = 4000;
         let pos = new Float32Array(count * 3);
         let particlegeo = new _three.PlaneBufferGeometry(1, 1);
         let geo = new _three.InstancedBufferGeometry();
@@ -36401,6 +36408,7 @@ class ParticleCloud {
         const mesh = new _three.Mesh(geo, this.billboardMaterial);
         mesh.frustumCulled = false;
         mesh.position.y += 20;
+        mesh.layers.set(1);
         return mesh;
     }
     render(time) {

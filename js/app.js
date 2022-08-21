@@ -185,8 +185,8 @@ export default class Sketch extends Core {
       this.morph();
     }
 
-    this.changeExposure(0.3);
-    this.enableCameraMovement(2.);
+    this.changeExposure(0.4);
+    this.enableCameraMovement(1.2);
     this.resetCameraControlsRotationLimits();
 
 
@@ -217,7 +217,7 @@ export default class Sketch extends Core {
 
     this.isDetailedViewActive = false;
 
-    this.enableCameraMovement(1.8);
+    this.enableCameraMovement(1.);
     this.resetCameraControlsRotationLimits();
     this.controls.setFocalOffset(0, 0, 0, true);
 

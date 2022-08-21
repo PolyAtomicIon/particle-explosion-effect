@@ -114,7 +114,7 @@ export default class Core {
     if (!isCameraMovementFinished)
       return;
 
-    const deltaDegree = this.isDetailedViewActive ? 1.5 : 7.;
+    const deltaDegree = this.isDetailedViewActive ? 7. : 7.;
     this.updateAzimuthAngle(deltaDegree * 1.5);
     this.updatePolarAngle(deltaDegree);
   }
@@ -347,13 +347,12 @@ export default class Core {
   }
 
   moveCameraOnPointerMove() {
-    return
     const isActionCancelled = (this.mouse.x == 0);
     if (isActionCancelled) {
       return;
     }
 
-    const speed = 0.02;
+    const speed = 2;
     const cameraPos = this.controls.camera.position;
 
     let deltaX = (this.mouse.x - cameraPos.x) * speed;

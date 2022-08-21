@@ -128,7 +128,7 @@ export default class ParticleCloud {
   }
 
   createBillboard() {
-    const count = 2000;
+    const count = 4000;
 
     let pos = new Float32Array(count * 3);
     let particlegeo = new THREE.PlaneBufferGeometry(1, 1);
@@ -153,6 +153,7 @@ export default class ParticleCloud {
     const mesh = new THREE.Mesh(geo, this.billboardMaterial);
     mesh.frustumCulled = false;
     mesh.position.y += 20;
+    mesh.layers.set(1);
 
     return mesh;
   }
