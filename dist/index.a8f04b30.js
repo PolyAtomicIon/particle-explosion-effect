@@ -593,9 +593,9 @@ class Sketch extends _coreDefault.default {
         this.resetCameraControlsRotationLimits();
         this.setCameraControlsSpeed({
             restThreshold: 5,
-            dampingFactor: 0.02,
+            dampingFactor: 0.025,
             dollySpeed: 0.7,
-            azimuthRotateSpeed: 0.05,
+            azimuthRotateSpeed: 1,
             polarRotateSpeed: 0.5
         });
         this.addObjects();
@@ -718,18 +718,17 @@ class Sketch extends _coreDefault.default {
             this.gui.morph = true;
             this.morph();
         }
-        this.changeExposure(0.4);
+        this.changeExposure(0.3);
         this.enableCameraMovement(2);
-        this.controls.normalizeRotations();
         this.resetCameraControlsRotationLimits();
-        const azimuthAngle = this.getAngleBetweenTwoVectorsInRad(position);
+        let azimuthAngle = this.getAngleBetweenTwoVectorsInRad(position);
         const polarAngle = _three.MathUtils.degToRad(90);
         await Promise.all([
             this.controls.moveTo(position.x, position.y + 20, position.z, true),
             this.controls.rotatePolarTo(polarAngle, true),
             this.controls.rotateAzimuthTo(azimuthAngle, true),
             this.controls.dollyTo(8, true),
-            this.controls.setFocalOffset(3.5, 0, 0, true)
+            this.controls.setFocalOffset(this.horizonalOffset, 0, 0, true)
         ]);
         this.updateControls();
     }
@@ -34170,6 +34169,8 @@ class Core {
         this.width = this.container.offsetWidth || this.container.innerWidth;
         this.height = this.container.offsetHeight || this.container.innerHeight;
         this.aspect = this.width / this.height;
+        console.log(window.innerWidth);
+        this.isMobile = this.isMobile();
         this.clock = new _three.Clock();
         this.raycaster = new _three.Raycaster();
         this.mouse = {
@@ -34182,6 +34183,8 @@ class Core {
             x: 0,
             y: 0
         };
+        this.horizonalOffset = 3.5;
+        if (this.isMobile) this.horizonalOffset = 0;
         this.pointer = new _three.Vector2();
         this.time = 0;
         this.cameraMoving = 0;
@@ -34199,13 +34202,22 @@ class Core {
         this.setLighting();
         this.setEventListeners();
     }
+    isMobile() {
+        const ua = navigator.userAgent;
+        if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) // tablet
+        return true;
+        else if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) // mobile
+        return true;
+        // desktop
+        return false;
+    }
     setRenderer() {
         this.renderer = new _three.WebGLRenderer({
             transparent: true,
             alpha: true,
             antialias: true
         });
-        // this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        if (this.isMobile) this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 0.5));
         this.renderer.setSize(this.width, this.height);
         // this.renderer.setClearColor(0x000000, 1);
         this.renderer.physicallyCorrectLights = true;
@@ -34333,9 +34345,14 @@ class Core {
     getAngleBetweenTwoVectorsInRad(position) {
         const origin = new _three.Vector3(0, 0, 10);
         const posV = new _three.Vector3(position.x, position.y, position.z);
-        let currentDegree = origin.angleTo(posV);
-        if (position.x <= 0) currentDegree *= -1;
-        return currentDegree;
+        let angle = origin.angleTo(posV);
+        if (position.x <= 0) angle *= -1;
+        return this.normalizeAngle(angle);
+    }
+    normalizeAngle(angle) {
+        angle = _three.MathUtils.radToDeg(angle);
+        if (angle < 0) angle = angle + 360;
+        return _three.MathUtils.degToRad(angle);
     }
     color(color) {
         return new _three.Color(color);

@@ -38,9 +38,9 @@ export default class Sketch extends Core {
     this.resetCameraControlsRotationLimits();
     this.setCameraControlsSpeed({
       restThreshold: 5,
-      dampingFactor: 0.02,
+      dampingFactor: 0.025,
       dollySpeed: 0.7,
-      azimuthRotateSpeed: 0.05,
+      azimuthRotateSpeed: 1,
       polarRotateSpeed: 0.5,
     });
 
@@ -185,12 +185,12 @@ export default class Sketch extends Core {
       this.morph();
     }
 
-    this.changeExposure(0.4);
+    this.changeExposure(0.3);
     this.enableCameraMovement(2.);
-    this.controls.normalizeRotations();
     this.resetCameraControlsRotationLimits();
 
-    const azimuthAngle = this.getAngleBetweenTwoVectorsInRad(position);
+
+    let azimuthAngle = this.getAngleBetweenTwoVectorsInRad(position);
     const polarAngle = THREE.MathUtils.degToRad(90);
 
     await Promise.all([
@@ -198,7 +198,7 @@ export default class Sketch extends Core {
       this.controls.rotatePolarTo(polarAngle, true),
       this.controls.rotateAzimuthTo(azimuthAngle, true),
       this.controls.dollyTo(8, true),
-      this.controls.setFocalOffset(3.5, 0, 0, true)
+      this.controls.setFocalOffset(this.horizonalOffset, 0, 0, true)
     ]);
 
     this.updateControls();

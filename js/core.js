@@ -11,6 +11,8 @@ export default class Core {
     this.width = this.container.offsetWidth || this.container.innerWidth;
     this.height = this.container.offsetHeight || this.container.innerHeight;
     this.aspect = this.width / this.height;
+    console.log(window.innerWidth)
+    this.isMobile = this.isMobile();
 
     this.clock = new THREE.Clock();
     this.raycaster = new THREE.Raycaster();
@@ -24,6 +26,10 @@ export default class Core {
       x: 0,
       y: 0
     };
+    this.horizonalOffset = 3.5;
+    if (this.isMobile) {
+      this.horizonalOffset = 0;
+    }
     this.pointer = new THREE.Vector2();
     this.time = 0;
     this.cameraMoving = 0;
@@ -43,13 +49,28 @@ export default class Core {
     this.setEventListeners();
   }
 
+  isMobile() {
+    const ua = navigator.userAgent;
+    if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
+      // tablet
+      return true;
+    }
+    else if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) {
+      // mobile
+      return true;
+    }
+    // desktop
+    return false
+  };
+
   setRenderer() {
     this.renderer = new THREE.WebGLRenderer({
       transparent: true,
       alpha: true,
       antialias: true,
     });
-    // this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    if (this.isMobile)
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 0.5));
     this.renderer.setSize(this.width, this.height);
     // this.renderer.setClearColor(0x000000, 1);
     this.renderer.physicallyCorrectLights = true;
@@ -257,13 +278,23 @@ export default class Core {
   getAngleBetweenTwoVectorsInRad(position) {
     const origin = new THREE.Vector3(0, 0, 10);
     const posV = new THREE.Vector3(position.x, position.y, position.z);
-    let currentDegree = origin.angleTo(posV);
-  
+    let angle = origin.angleTo(posV);
+
     if (position.x <= 0) {
-      currentDegree *= -1;
+      angle *= -1;
     }
 
-    return currentDegree
+    return this.normalizeAngle(angle);
+  }
+
+  normalizeAngle(angle) {
+    angle = THREE.MathUtils.radToDeg(angle);
+
+    if (angle < 0) {
+      angle = angle + 360
+    }
+
+    return THREE.MathUtils.degToRad(angle);
   }
 
   color(color) {
