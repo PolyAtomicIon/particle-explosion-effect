@@ -36368,8 +36368,8 @@ class ParticleCloud {
         const mesh = new _three.Mesh(geo, this.material);
         mesh.frustumCulled = false;
         mesh.position.y += 20;
-        mesh.rotateOnAxis(new _three.Vector3(0, 0, 1), _three.MathUtils.degToRad(-15));
-        mesh.rotateOnAxis(new _three.Vector3(1, 0, 0), _three.MathUtils.degToRad(15));
+        mesh.rotateOnAxis(new _three.Vector3(0, 0, 1), _three.MathUtils.degToRad(-35));
+        mesh.rotateOnAxis(new _three.Vector3(1, 0, 0), _three.MathUtils.degToRad(10));
         return mesh;
     }
     createBillboardMaterial(resolution) {
@@ -36435,7 +36435,7 @@ class ParticleCloud {
         const mesh = new _three.Mesh(geo, this.billboardMaterial);
         mesh.frustumCulled = false;
         mesh.position.y += 20;
-        mesh.layers.set(1);
+        // mesh.layers.set(1);
         return mesh;
     }
     render(time) {
@@ -43332,11 +43332,11 @@ parcelHelpers.defineInteropFlag(exports);
 var _three = require("three");
 class StarFall {
     constructor(){
-        this.count = 5000;
+        this.count = 3500;
         this.geo = [];
         this.geometry = null;
         this.stars = null;
-        this.acceleration = 0.025;
+        this.acceleration = 0.02;
         this.material = new _three.LineBasicMaterial({
             color: 16777215,
             opacity: 1,

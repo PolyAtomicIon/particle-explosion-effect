@@ -96,11 +96,11 @@ export default class ParticleCloud {
     mesh.position.y += 20;
     mesh.rotateOnAxis(
       new THREE.Vector3(0, 0, 1), 
-      THREE.MathUtils.degToRad(-15)
+      THREE.MathUtils.degToRad(-35)
     )
     mesh.rotateOnAxis(
       new THREE.Vector3(1, 0, 0), 
-      THREE.MathUtils.degToRad(15)
+      THREE.MathUtils.degToRad(10)
     )
 
     return mesh;
@@ -161,7 +161,7 @@ export default class ParticleCloud {
     const mesh = new THREE.Mesh(geo, this.billboardMaterial);
     mesh.frustumCulled = false;
     mesh.position.y += 20;
-    mesh.layers.set(1);
+    // mesh.layers.set(1);
 
     return mesh;
   }

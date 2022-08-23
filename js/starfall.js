@@ -2,11 +2,11 @@ import * as THREE from "three";
 
 export default class StarFall {
   constructor() {
-    this.count = 5000;
+    this.count = 3500;
     this.geo = [];
     this.geometry = null;
     this.stars = null;
-    this.acceleration = 0.025;
+    this.acceleration = 0.02;
     this.material = new THREE.LineBasicMaterial({
       color: 0xffffff,
       opacity: 1,
