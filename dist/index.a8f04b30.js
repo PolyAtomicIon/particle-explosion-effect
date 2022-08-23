@@ -524,6 +524,8 @@ var _core = require("./core");
 var _coreDefault = parcelHelpers.interopDefault(_core);
 var _particleCloud = require("./particleCloud");
 var _particleCloudDefault = parcelHelpers.interopDefault(_particleCloud);
+var _starfall = require("./starfall");
+var _starfallDefault = parcelHelpers.interopDefault(_starfall);
 var _icon1Glb = require("./icon1.glb");
 var _icon1GlbDefault = parcelHelpers.interopDefault(_icon1Glb);
 var _gltfloader = require("three/examples/jsm/loaders/GLTFLoader");
@@ -590,7 +592,8 @@ class Sketch extends _coreDefault.default {
         this.onResizeEvents.push(this.particleCloud.resize.bind(this.particleCloud));
         this.onRenderEvents.push(this.particleCloud.render.bind(this.particleCloud));
         this.onRenderEvents.push(this.applyHoverEffect.bind(this));
-        this.resetCameraControlsRotationLimits();
+        this.starFall = new _starfallDefault.default();
+        this.onRenderEvents.push(this.starFall.render.bind(this.starFall));
         this.setCameraControlsSpeed({
             restThreshold: 5,
             dampingFactor: 0.025,
@@ -598,8 +601,23 @@ class Sketch extends _coreDefault.default {
             azimuthRotateSpeed: 1,
             polarRotateSpeed: 0.5
         });
-        this.addObjects();
-        this.addBillboard();
+        // this.addObjects();
+        // this.addBillboard();
+        this.addStarFall();
+        _gsapDefault.default.delayedCall(1, ()=>{
+            this.starFall.play();
+        });
+        _gsapDefault.default.delayedCall(2.5, ()=>{
+            this.time = 0;
+            this.isPlaying = true;
+            this.addObjects();
+            this.addBillboard();
+        });
+        _gsapDefault.default.delayedCall(3.7, ()=>{
+            this.starFall.stop();
+            console.log(this.time);
+            this.controls.rotatePolarTo(this.initialPolarDegreeInRad, true);
+        });
         this.setPostProcessing();
         this.setupResize();
         this.resize();
@@ -778,7 +796,7 @@ class Sketch extends _coreDefault.default {
         let maxRadius = 0.5;
         const minGapRadius = 0.02;
         const maxGapRadius = 0.3;
-        for(let i = 0; i < 1; i++){
+        for(let i = 0; i < 3; i++){
             let mesh = this.particleCloud.createParticleCloud(count, minRadius, maxRadius);
             this.scene.add(mesh);
             minRadius = maxRadius + minGapRadius;
@@ -791,6 +809,10 @@ class Sketch extends _coreDefault.default {
             y: this.height
         });
         this.scene.add(this.particleCloud.createBillboard());
+    }
+    addStarFall() {
+        const stars = this.starFall.createStarFall();
+        this.scene.add(stars);
     }
     addPointsForCamera() {
         // const geometry = new THREE.BoxGeometry(3, 3, 3);
@@ -815,7 +837,7 @@ class Sketch extends _coreDefault.default {
     }
     applyHoverEffect() {
         const isCameraMoving = this.time < this.cameraMoving;
-        if (isCameraMoving) return;
+        if (isCameraMoving || !this.isPlaying) return;
         this.updateCameraControlsRotationLimits();
         this.moveCameraOnPointerMove();
     }
@@ -823,9 +845,10 @@ class Sketch extends _coreDefault.default {
         this.renderManager();
         this.renderer.clear();
         this.camera.layers.set(0);
-        this.composer.render();
-        // this.renderer.clearDepth();
+        if (this.composer) this.composer.render();
+        this.renderer.clearDepth();
         this.camera.layers.set(1);
+        this.starFall.render(this.time);
         this.renderer.render(this.scene, this.camera);
         requestAnimationFrame(this.render.bind(this));
     }
@@ -836,7 +859,7 @@ const sketch = new Sketch({
 });
 sketch.fixHeightProblem();
 
-},{"three":"ktPTu","three/examples/jsm/controls/TransformControls.js":"7wM6b","lil-gui":"fkEfG","./core":"l2iy1","./particleCloud":"7AZIm","./icon1.glb":"82AQo","three/examples/jsm/loaders/GLTFLoader":"dVRsF","three/examples/jsm/postprocessing/EffectComposer.js":"e5jie","three/examples/jsm/postprocessing/RenderPass.js":"hXnUO","three/examples/jsm/postprocessing/UnrealBloomPass.js":"3iDYE","gsap":"fPSuC","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"ktPTu":[function(require,module,exports) {
+},{"three":"ktPTu","three/examples/jsm/controls/TransformControls.js":"7wM6b","lil-gui":"fkEfG","./core":"l2iy1","./particleCloud":"7AZIm","./icon1.glb":"82AQo","three/examples/jsm/loaders/GLTFLoader":"dVRsF","three/examples/jsm/postprocessing/EffectComposer.js":"e5jie","three/examples/jsm/postprocessing/RenderPass.js":"hXnUO","three/examples/jsm/postprocessing/UnrealBloomPass.js":"3iDYE","gsap":"fPSuC","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","./starfall":"bYYLq"}],"ktPTu":[function(require,module,exports) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "ACESFilmicToneMapping", ()=>ACESFilmicToneMapping
@@ -34188,7 +34211,7 @@ class Core {
         this.pointer = new _three.Vector2();
         this.time = 0;
         this.cameraMoving = 0;
-        this.isPlaying = true;
+        this.isPlaying = false;
         this.isDetailedViewActive = false;
         this.onResizeEvents = [];
         this.onRenderEvents = [];
@@ -34227,18 +34250,20 @@ class Core {
         this.container.appendChild(this.renderer.domElement);
     }
     setCamera() {
-        this.camera = new _three.PerspectiveCamera(60, this.aspect, 0.00001, 1000);
-        this.camera.position.set(0, 95, 0);
+        this.camera = new _three.PerspectiveCamera(60, this.aspect, 0.00001, 3000);
+        this.camera.position.set(0, 40, 0);
+        this.camera.position.z = 100;
         this.camera.aspect = this.aspect;
     }
     setCameraControls() {
         this.controls.setTarget(0, 0, 0);
         this.controls.draggingDampingFactor = 0.05;
         // this.controls.mouseButtons.left = CameraControls.ACTION.NONE;
-        this.initialPolarDegreeInRad = _three.MathUtils.degToRad(30);
+        this.initialPolarDegreeInRad = _three.MathUtils.degToRad(42);
+        // this.initialAzimuthDegreeInRad = THREE.MathUtils.degToRad(0);
         this.controls.rotatePolarTo(this.initialPolarDegreeInRad);
+        // this.controls.rotateAzimuthTo(this.initialAzimuthDegreeInRad,);
         this.updateCameraControlsRotationLimits();
-        // this.controls.truck(0, 18);
         this.updateControls();
     }
     updateCameraControlsRotationLimits() {
@@ -34404,11 +34429,11 @@ class Core {
         this.controls.rotate(deltaX * degreeInRad, deltaY * degreeInRad, true);
     }
     renderManager() {
-        if (!this.isPlaying) return;
+        // if (!this.isPlaying) return;
         this.onRenderEvents.forEach((fn)=>{
             fn(this.time);
         });
-        this.time += 0.01;
+        if (this.isPlaying) this.time += 0.01;
         this.updateControls();
     }
 }
@@ -36343,6 +36368,8 @@ class ParticleCloud {
         const mesh = new _three.Mesh(geo, this.material);
         mesh.frustumCulled = false;
         mesh.position.y += 20;
+        mesh.rotateOnAxis(new _three.Vector3(0, 0, 1), _three.MathUtils.degToRad(-15));
+        mesh.rotateOnAxis(new _three.Vector3(1, 0, 0), _three.MathUtils.degToRad(15));
         return mesh;
     }
     createBillboardMaterial(resolution) {
@@ -43299,6 +43326,95 @@ _gsapCoreJs._forEachName("x,y,z,top,right,bottom,left,width,height,fontSize,padd
 });
 _gsapCoreJs.gsap.registerPlugin(CSSPlugin);
 
-},{"./gsap-core.js":"05eeC","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}]},["44WRj","5AKj5"], "5AKj5", "parcelRequire94c2")
+},{"./gsap-core.js":"05eeC","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"bYYLq":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _three = require("three");
+class StarFall {
+    constructor(){
+        this.count = 5000;
+        this.geo = [];
+        this.geometry = null;
+        this.stars = null;
+        this.acceleration = 0.025;
+        this.material = new _three.LineBasicMaterial({
+            color: 16777215,
+            opacity: 1,
+            linewidth: 2
+        });
+        this.isPlaying = false;
+    }
+    createStarFall() {
+        this.geometry = this.createGeometry();
+        this.stars = new _three.LineSegments(this.geometry, this.material);
+        this.stars.frustumCulled = false;
+        this.stars.layers.set(1);
+        return this.stars;
+    }
+    createGeometry() {
+        const geometry = new _three.BufferGeometry();
+        const vertex = new _three.Vector3();
+        const vertices = [];
+        for(let i = 0; i < this.count; i++){
+            vertex.x = Math.random() * 150 - 75;
+            vertex.y = Math.random() * 200 - 100;
+            vertex.z = Math.random() * 150 - 75;
+            // vertex.multiplyScalar(4)
+            vertices.push(vertex.x, vertex.y, vertex.z);
+            const v = new _three.Vector3(vertex.x, vertex.y, vertex.z);
+            v.velocity = 0;
+            this.geo.push(v);
+            // vertex.multiplyScalar(1.2)
+            vertices.push(vertex.x, vertex.y, vertex.z);
+            const f = new _three.Vector3(vertex.x, vertex.y, vertex.z);
+            f.velocity = 0;
+            this.geo.push(f);
+        }
+        geometry.setAttribute('position', new _three.Float32BufferAttribute(vertices, 3));
+        return geometry;
+    }
+    stop() {
+        this.isPlaying = false;
+        this.acceleration = 0;
+    }
+    play() {
+        this.isPlaying = true;
+    }
+    render(time) {
+        if (this.stars && this.isPlaying) {
+            const vertices = [];
+            for(let i = 0; i < this.geo.length; i += 2){
+                const p1 = this.geo[i];
+                const p2 = this.geo[i + 1];
+                p1.velocity += this.acceleration;
+                p1.y += p1.velocity;
+                p1.z += p1.velocity;
+                if (time > 0.01) p2.velocity += this.acceleration - 0.0001;
+                else p2.velocity += this.acceleration - 0.005;
+                p2.y += p2.velocity;
+                p2.z += p2.velocity;
+                // console.log(p1.y)
+                if (p1.y > 100 || p1.z > 75) {
+                    const y = Math.random() * 100 - 50;
+                    const z = Math.random() * 50 - 25;
+                    p1.y = y;
+                    p1.z = z;
+                    p1.velocity = 0;
+                    p2.y = y;
+                    p2.z = z;
+                    p2.velocity = 0;
+                }
+                vertices.push(p1.x, p1.y, p1.z);
+                vertices.push(p2.x, p2.y, p2.z);
+            }
+            // console.log(this.stars)
+            this.geometry.setAttribute('position', new _three.Float32BufferAttribute(vertices, 3));
+            this.geometry.attributes.position.verticesNeedUpdate = true;
+        }
+    }
+}
+exports.default = StarFall;
+
+},{"three":"ktPTu","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}]},["44WRj","5AKj5"], "5AKj5", "parcelRequire94c2")
 
 //# sourceMappingURL=index.a8f04b30.js.map

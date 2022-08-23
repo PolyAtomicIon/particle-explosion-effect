@@ -3,6 +3,7 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 import GUI from "lil-gui";
 import Core from './core';
 import ParticleCloud from "./particleCloud";
+import StarFall from "./starfall";
 import ParticleCloudC from "./icon1.glb";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -35,7 +36,9 @@ export default class Sketch extends Core {
     this.onRenderEvents.push(this.particleCloud.render.bind(this.particleCloud));
     this.onRenderEvents.push(this.applyHoverEffect.bind(this));
 
-    this.resetCameraControlsRotationLimits();
+    this.starFall = new StarFall();
+    this.onRenderEvents.push(this.starFall.render.bind(this.starFall));
+
     this.setCameraControlsSpeed({
       restThreshold: 5,
       dampingFactor: 0.025,
@@ -44,8 +47,27 @@ export default class Sketch extends Core {
       polarRotateSpeed: 0.5,
     });
 
-    this.addObjects();
-    this.addBillboard();
+    // this.addObjects();
+    // this.addBillboard();
+    this.addStarFall();
+
+    gsap.delayedCall(1, () => {
+      this.starFall.play();
+    });
+
+
+    gsap.delayedCall(2.5, () => {
+      this.time = 0;
+      this.isPlaying = true;
+      this.addObjects();
+      this.addBillboard();
+    });
+
+    gsap.delayedCall(3.7, () => {
+      this.starFall.stop();
+      console.log(this.time)
+      this.controls.rotatePolarTo(this.initialPolarDegreeInRad, true);
+    });
 
     this.setPostProcessing();
     this.setupResize();
@@ -270,7 +292,7 @@ export default class Sketch extends Core {
     const minGapRadius = 0.02;
     const maxGapRadius = 0.3;
 
-    for (let i = 0; i < 1; i++) {
+    for (let i = 0; i < 3; i++) {
 
       let mesh = this.particleCloud.createParticleCloud(
         count,
@@ -292,6 +314,11 @@ export default class Sketch extends Core {
     );
 
     this.scene.add(this.particleCloud.createBillboard());
+  }
+
+  addStarFall() {
+    const stars = this.starFall.createStarFall();
+    this.scene.add(stars);
   }
 
   addPointsForCamera() {
@@ -323,7 +350,7 @@ export default class Sketch extends Core {
 
   applyHoverEffect() {
     const isCameraMoving = this.time < this.cameraMoving;
-    if (isCameraMoving)
+    if (isCameraMoving || !this.isPlaying)
       return;
 
     this.updateCameraControlsRotationLimits();
@@ -336,10 +363,13 @@ export default class Sketch extends Core {
     this.renderer.clear();
 
     this.camera.layers.set(0);
-    this.composer.render();
+    if (this.composer)
+      this.composer.render();
 
-    // this.renderer.clearDepth();
+    this.renderer.clearDepth();
     this.camera.layers.set(1);
+
+    this.starFall.render(this.time)
     this.renderer.render(this.scene, this.camera)
 
     requestAnimationFrame(this.render.bind(this));

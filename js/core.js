@@ -33,7 +33,7 @@ export default class Core {
     this.pointer = new THREE.Vector2();
     this.time = 0;
     this.cameraMoving = 0;
-    this.isPlaying = true;
+    this.isPlaying = false;
     this.isDetailedViewActive = false;
     this.onResizeEvents = [];
     this.onRenderEvents = [];
@@ -85,13 +85,15 @@ export default class Core {
       60,
       this.aspect,
       0.00001,
-      1000
+      3000
     );
     this.camera.position.set(
       0,
-      95,
+      40,
       0
     );
+    this.camera.position.z = 100;
+
     this.camera.aspect = this.aspect;
   }
 
@@ -100,11 +102,12 @@ export default class Core {
     this.controls.draggingDampingFactor = 0.05;
     // this.controls.mouseButtons.left = CameraControls.ACTION.NONE;
 
-    this.initialPolarDegreeInRad = THREE.MathUtils.degToRad(30);
+    this.initialPolarDegreeInRad = THREE.MathUtils.degToRad(42);
+    // this.initialAzimuthDegreeInRad = THREE.MathUtils.degToRad(0);
     this.controls.rotatePolarTo(this.initialPolarDegreeInRad,);
+    // this.controls.rotateAzimuthTo(this.initialAzimuthDegreeInRad,);
     this.updateCameraControlsRotationLimits();
 
-    // this.controls.truck(0, 18);
 
     this.updateControls();
   }
@@ -367,14 +370,15 @@ export default class Core {
   }
 
   renderManager() {
-    if (!this.isPlaying) return;
+    // if (!this.isPlaying) return;
 
     this.onRenderEvents.forEach(fn => {
       fn(this.time);
     });
 
 
-    this.time += 0.01;
+    if( this.isPlaying )
+      this.time += 0.01;
     this.updateControls();
   }
 

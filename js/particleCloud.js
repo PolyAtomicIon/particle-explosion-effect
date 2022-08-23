@@ -94,6 +94,14 @@ export default class ParticleCloud {
     const mesh = new THREE.Mesh(geo, this.material);
     mesh.frustumCulled = false;
     mesh.position.y += 20;
+    mesh.rotateOnAxis(
+      new THREE.Vector3(0, 0, 1), 
+      THREE.MathUtils.degToRad(-15)
+    )
+    mesh.rotateOnAxis(
+      new THREE.Vector3(1, 0, 0), 
+      THREE.MathUtils.degToRad(15)
+    )
 
     return mesh;
   }
