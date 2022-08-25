@@ -3,7 +3,8 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 import GUI from "lil-gui";
 import Core from './core';
 import ParticleCloud from "./particleCloud";
-import StarFall from "./starfall";
+import StarFall from "./starfallPoints";
+import Trails from "./trails";
 import ParticleCloudC from "./icon1.glb";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -36,8 +37,14 @@ export default class Sketch extends Core {
     this.onRenderEvents.push(this.particleCloud.render.bind(this.particleCloud));
     this.onRenderEvents.push(this.applyHoverEffect.bind(this));
 
-    this.starFall = new StarFall();
+    this.starFall = new StarFall({ 
+      x: this.width, 
+      y: this.height 
+    });
     this.onRenderEvents.push(this.starFall.render.bind(this.starFall));
+
+    this.trails = new Trails();
+    this.onRenderEvents.push(this.trails.render.bind(this.trails));
 
     this.setCameraControlsSpeed({
       restThreshold: 5,
@@ -51,9 +58,8 @@ export default class Sketch extends Core {
     // this.addBillboard();
     this.addStarFall();
 
-    gsap.delayedCall(1, () => {
-      this.starFall.play();
-    });
+    // gsap.delayedCall(1, () => {
+    // });
 
 
     gsap.delayedCall(2.5, () => {
@@ -67,6 +73,8 @@ export default class Sketch extends Core {
 
     gsap.delayedCall(3.7, () => {
       this.starFall.stop();
+      this.trails.stop();
+      this.changeBloomStrength(1.0)
       console.log(this.time)
       this.controls.rotatePolarTo(this.initialPolarDegreeInRad, true);
     });
@@ -113,7 +121,7 @@ export default class Sketch extends Core {
     this.settings = {
       morph: false,
       exposure: .75,
-      bloomStrength: 1.0,
+      bloomStrength: 2,
       bloomThreshold: 0,
       bloomRadius: 0,
       point1: false,
@@ -157,6 +165,7 @@ export default class Sketch extends Core {
     });
 
     this.changeExposure(this.settings.exposure)
+    this.changeBloomStrength(this.settings.bloomStrength)
   }
 
   morph() {
@@ -320,9 +329,17 @@ export default class Sketch extends Core {
     this.scene.add(this.particleCloud.createBillboard());
   }
 
-  addStarFall() {
+  async addStarFall() {
+    await this.starFall.loadAssets();
+    const trails = this.trails.create();
+    this.scene.add(trails);
+    
+    this.starFall.createMaterial();
     const stars = this.starFall.createStarFall();
     this.scene.add(stars);
+
+    this.starFall.play();
+    this.trails.play();
   }
 
   addPointsForCamera() {

@@ -1,12 +1,12 @@
 import * as THREE from "three";
 
-export default class StarFall {
+export default class Trails {
   constructor() {
     this.count = 3500;
     this.geo = [];
     this.geometry = null;
-    this.stars = null;
-    this.acceleration = 0.02;
+    this.trails = null;
+    this.acceleration = 0.04;
     this.material = new THREE.LineBasicMaterial({
       color: 0xffffff,
       opacity: 1,
@@ -15,12 +15,12 @@ export default class StarFall {
     this.isPlaying = false;
   }
 
-  createStarFall() {
+  create() {
     this.geometry = this.createGeometry();
-    this.stars = new THREE.LineSegments(this.geometry, this.material);
-    this.stars.frustumCulled = false;
-    this.stars.layers.set(1);
-    return this.stars;
+    this.trails = new THREE.LineSegments(this.geometry, this.material);
+    this.trails.frustumCulled = false;
+    this.trails.layers.set(1);
+    return this.trails;
   }
 
   createGeometry() {
@@ -64,6 +64,9 @@ export default class StarFall {
   stop() {
     this.isPlaying = false;
     this.acceleration = 0;
+    this.trails.removeFromParent();
+    this.geometry.dispose();
+    this.material.dispose();
   }
 
   play() {
@@ -71,7 +74,7 @@ export default class StarFall {
   }
 
   render(time) {
-    if (this.stars && this.isPlaying) {
+    if (this.trails && this.isPlaying) {
       const vertices = [];
 
       for (let i = 0; i < this.geo.length; i += 2) {
@@ -106,7 +109,7 @@ export default class StarFall {
         vertices.push(p1.x, p1.y, p1.z);
         vertices.push(p2.x, p2.y, p2.z);
       }
-      // console.log(this.stars)
+      // console.log(this.trails)
       this.geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
       this.geometry.attributes.position.verticesNeedUpdate = true;
     }

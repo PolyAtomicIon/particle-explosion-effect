@@ -3,7 +3,6 @@ precision highp float;
 uniform float time;
 uniform float animationTime;
 uniform float animationSpeed;
-varying vec3 vPosition;
 varying vec2 vUv;
 attribute vec3 pos;
 
@@ -210,18 +209,14 @@ mat3 rotation3dY(float angle){
 
 void main(){
   vUv=position.xy+vec2(.5);
-  vec3 finalPos=pos+position*.1;
   
   float particleSize=cnoise(pos*5.)*cnoise(pos*5.)*20.+4.;
-  
   vec3 worldPos=rotation3dY((time)*.01*(.1+particleSize*.5))*pos;
   
   vec3 particlePosition=(modelMatrix*vec4(worldPos,1.)).xyz;
   
   vec4 viewPos=viewMatrix*vec4(particlePosition,1.);
-  
   viewPos.xyz+=position*(.02+.05*particleSize);
   
   gl_Position=projectionMatrix*viewPos;
-  
 }
