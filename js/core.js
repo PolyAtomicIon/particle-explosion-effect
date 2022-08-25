@@ -89,10 +89,9 @@ export default class Core {
     );
     this.camera.position.set(
       0,
-      40,
+      75,
       0
     );
-    this.camera.position.z = 100;
 
     this.camera.aspect = this.aspect;
   }
@@ -103,7 +102,7 @@ export default class Core {
     // this.controls.mouseButtons.left = CameraControls.ACTION.NONE;
 
     this.initialPolarDegreeInRad = THREE.MathUtils.degToRad(42);
-    // this.initialAzimuthDegreeInRad = THREE.MathUtils.degToRad(0);
+    // this.initialAzimuthDegreeInRad = THREE.MathUtils.degToRad(0);  
     this.controls.rotatePolarTo(this.initialPolarDegreeInRad,);
     // this.controls.rotateAzimuthTo(this.initialAzimuthDegreeInRad,);
     this.updateCameraControlsRotationLimits();

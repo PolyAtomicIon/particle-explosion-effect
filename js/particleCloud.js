@@ -5,6 +5,7 @@ import vertex from "./shader/vertexParticles.glsl";
 import simpleVertex from "./shader/vertex.glsl";
 import particleTexture from "../particle-texture.png";
 import colorTexture from "../color-tiles.png";
+import gsap from "gsap";
 
 export default class ParticleCloud {
   constructor() {
@@ -12,6 +13,8 @@ export default class ParticleCloud {
     this.isMorphingEnabled = false;
 
     this.material = null;
+    this.galaxyRings = [];
+    this.billboard = null;
     this.particleTexture = new THREE.TextureLoader().load(particleTexture);
     this.colorTexture = new THREE.TextureLoader().load(colorTexture);
   }
@@ -93,16 +96,20 @@ export default class ParticleCloud {
 
     const mesh = new THREE.Mesh(geo, this.material);
     mesh.frustumCulled = false;
-    mesh.position.y += 20;
+    // mesh.position.y += 20;
     mesh.rotateOnAxis(
       new THREE.Vector3(0, 0, 1), 
-      THREE.MathUtils.degToRad(-35)
-    )
+      THREE.MathUtils.degToRad(-20)
+    );
     mesh.rotateOnAxis(
       new THREE.Vector3(1, 0, 0), 
-      THREE.MathUtils.degToRad(10)
-    )
+      THREE.MathUtils.degToRad(-15),
+    );
+    mesh.scale.x = 0.001;
+    mesh.scale.y = 0.001;
+    mesh.scale.z = 0.001;
 
+    this.galaxyRings.push(mesh);
     return mesh;
   }
 
@@ -160,10 +167,31 @@ export default class ParticleCloud {
 
     const mesh = new THREE.Mesh(geo, this.billboardMaterial);
     mesh.frustumCulled = false;
-    mesh.position.y += 20;
+    // mesh.position.y += 20;
     // mesh.layers.set(1);
+    mesh.scale.x = 0.001;
+    mesh.scale.y = 0.001;
+    mesh.scale.z = 0.001;
 
+    this.billboard = mesh;
     return mesh;
+  }
+
+  animate(){
+    this.galaxyRings.forEach(r => {
+      gsap.to(r.scale, {
+        duration: 2.5,
+        x: 1,
+        y: 1,
+        z: 1,
+      }); 
+    })
+    gsap.to(this.billboard.scale, {
+      duration: 2.5,
+      x: 1,
+      y: 1,
+      z: 1,
+    }); 
   }
 
   render(time) {

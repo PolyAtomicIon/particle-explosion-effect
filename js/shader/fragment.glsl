@@ -45,8 +45,8 @@ void main(){
     vec4 blue = vec4(1.0, 0.9686, 0.0, 1.0);
     vec4 green = vec4(0.0, 1.0, 0.0, 1.0);
     float step1 = 0.0;
-    float step2 = 0.5;
-    float step3 = 0.78;
+    float step2 = 0.35;
+    float step3 = 0.5;
     float step4 = 1.0;
 
     vec4 color = mix(white, red, smoothstep(step1, step2, dist));

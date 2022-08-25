@@ -61,6 +61,8 @@ export default class Sketch extends Core {
       this.isPlaying = true;
       this.addObjects();
       this.addBillboard();
+      this.particleCloud.animate();
+      this.enableCameraMovement(1.)
     });
 
     gsap.delayedCall(3.7, () => {
@@ -110,7 +112,7 @@ export default class Sketch extends Core {
   setGuiSettings() {
     this.settings = {
       morph: false,
-      exposure: 1,
+      exposure: .75,
       bloomStrength: 1.0,
       bloomThreshold: 0,
       bloomRadius: 0,
@@ -153,6 +155,8 @@ export default class Sketch extends Core {
     this.gui.add(this.settings, 'truck2').onChange(() => {
       this.controls.truck(-2, 0, true);
     });
+
+    this.changeExposure(this.settings.exposure)
   }
 
   morph() {
@@ -161,7 +165,7 @@ export default class Sketch extends Core {
       this.changeBloomStrength(0.5);
     }
     else {
-      this.changeExposure(.9);
+      this.changeExposure(.75);
       this.changeBloomStrength(1.);
     }
     this.particleCloud.morph(this.time);
@@ -275,7 +279,7 @@ export default class Sketch extends Core {
   }
 
   addObjects() {
-    const count = 8500;
+    const count = 6500;
     const duration = 0.9;
     const speed = 1.9;
     // const speed = 0;
@@ -289,8 +293,8 @@ export default class Sketch extends Core {
 
     let minRadius = 0.01;
     let maxRadius = 0.5;
-    const minGapRadius = 0.02;
-    const maxGapRadius = 0.3;
+    const minGapRadius = 0.1;
+    const maxGapRadius = 1;
 
     for (let i = 0; i < 3; i++) {
 
